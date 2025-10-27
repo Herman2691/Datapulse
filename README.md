@@ -503,10 +503,11 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 Pour toute question ou problème :
 - 🐛 Ouvrir une [Issue](https://github.com/votre-username/datapulse-pro/issues)
 - 💬 Démarrer une [Discussion](https://github.com/votre-username/datapulse-pro/discussions)
-- 📧 Contact direct : support@datapulse.com
+- 📧 Contact direct : hermanKandolo2022@gmail.com
+  
 
 ---
-
+- tester l'application en linge : https://datapulse-t69vfezujmrcobcdsgrpt3.streamlit.app/
 ## 🗺 Roadmap
 
 ### Version 3.1 (Q2 2025)
