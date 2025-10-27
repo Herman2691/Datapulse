@@ -507,7 +507,7 @@ Pour toute question ou problème :
   
 
 ---
-- tester l'application en linge : https://datapulse-t69vfezujmrcobcdsgrpt3.streamlit.app/
+- tester l'application en ligne : https://datapulse-t69vfezujmrcobcdsgrpt3.streamlit.app/
 ## 🗺 Roadmap
 
 ### Version 3.1 (Q2 2025)
