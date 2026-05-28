@@ -664,9 +664,9 @@ def page_chargement_eda():
     st.markdown("### 1️⃣ Importer vos Données")
     
     uploaded_file = st.file_uploader(
-        "Choisissez un fichier CSV ou Excel",
+        "Choisissez un fichier CSV ou Excel (CSV, XLSX, XLS)",
         type=['csv', 'xlsx', 'xls'],
-        help="Uploadez votre fichier CSV ou Excel pour commencer l'analyse"
+        help="Uploadez votre fichier CSV, XLSX ou XLS pour commencer l'analyse"
     )
     
     if uploaded_file is not None:
