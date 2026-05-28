@@ -30,25 +30,27 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# CSS professionnel moderne
+# CSS professionnel moderne - Thème Mode Clair (Style Gemini)
 st.markdown("""
 <style>
     /* Import Google Fonts */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
     
-    /* Variables CSS */
+    /* Variables CSS - Palette Mode Clair */
     :root {
-        --primary-color: #6366f1;
-        --secondary-color: #8b5cf6;
-        --accent-color: #ec4899;
-        --success-color: #10b981;
-        --warning-color: #f59e0b;
-        --error-color: #ef4444;
-        --dark-bg: #0f172a;
-        --card-bg: #1e293b;
-        --text-primary: #f1f5f9;
-        --text-secondary: #94a3b8;
-        --border-color: #334155;
+        --primary-color: #6B5CE7;
+        --secondary-color: #8B7EF5;
+        --accent-color: #A59BF9;
+        --success-color: #10B981;
+        --warning-color: #F59E0B;
+        --error-color: #EF4444;
+        --bg-primary: #F0F4F9;
+        --bg-secondary: #FFFFFF;
+        --text-primary: #1F1F1F;
+        --text-secondary: #5E5E5E;
+        --border-color: #D1D9E6;
+        --qwen-gradient-start: #6B5CE7;
+        --qwen-gradient-end: #4C3FD9;
     }
     
     /* Reset et base */
@@ -57,21 +59,21 @@ st.markdown("""
     }
     
     .main {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        background: var(--bg-primary);
         padding: 2rem;
     }
     
     .stApp {
-        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #1e293b 100%);
+        background: var(--bg-primary);
     }
     
-    /* Header professionnel */
+    /* Header professionnel - Style Mode Clair */
     .pro-header {
-        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        background: linear-gradient(135deg, var(--qwen-gradient-start) 0%, var(--qwen-gradient-end) 100%);
         padding: 2.5rem;
         border-radius: 20px;
         margin-bottom: 2rem;
-        box-shadow: 0 20px 40px rgba(99, 102, 241, 0.3);
+        box-shadow: 0 8px 24px rgba(107, 92, 231, 0.15);
         position: relative;
         overflow: hidden;
     }
@@ -83,7 +85,7 @@ st.markdown("""
         right: -50%;
         width: 200%;
         height: 200%;
-        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
         animation: pulse 4s ease-in-out infinite;
     }
     
@@ -97,19 +99,19 @@ st.markdown("""
         font-size: 3rem;
         font-weight: 700;
         margin: 0;
-        text-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        text-shadow: 0 2px 8px rgba(0,0,0,0.15);
         letter-spacing: -0.5px;
     }
     
     .pro-header .subtitle {
-        color: rgba(255,255,255,0.9);
+        color: rgba(255,255,255,0.95);
         font-size: 1.25rem;
         font-weight: 400;
         margin: 0.5rem 0;
     }
     
     .pro-header .version {
-        color: rgba(255,255,255,0.7);
+        color: rgba(255,255,255,0.85);
         font-size: 0.875rem;
         font-weight: 300;
     }
@@ -140,18 +142,18 @@ st.markdown("""
     
     /* Cards professionnelles */
     .pro-card {
-        background: var(--card-bg);
+        background: var(--bg-secondary);
         border-radius: 16px;
         padding: 2rem;
         margin: 1rem 0;
         border: 1px solid var(--border-color);
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
         transition: all 0.3s ease;
     }
     
     .pro-card:hover {
         transform: translateY(-4px);
-        box-shadow: 0 12px 24px rgba(99, 102, 241, 0.2);
+        box-shadow: 0 8px 20px rgba(107, 92, 231, 0.12);
         border-color: var(--primary-color);
     }
     
@@ -168,9 +170,9 @@ st.markdown("""
         margin: 0.5rem 0;
     }
     
-    /* Boutons professionnels */
+    /* Boutons professionnels - Style Mode Clair */
     .stButton > button {
-        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        background: linear-gradient(135deg, var(--qwen-gradient-start) 0%, var(--qwen-gradient-end) 100%);
         color: white;
         border: none;
         border-radius: 12px;
@@ -178,14 +180,14 @@ st.markdown("""
         font-weight: 600;
         font-size: 1rem;
         transition: all 0.3s ease;
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        box-shadow: 0 4px 12px rgba(107, 92, 231, 0.2);
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
     
     .stButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+        box-shadow: 0 8px 20px rgba(107, 92, 231, 0.3);
         background: linear-gradient(135deg, var(--secondary-color) 0%, var(--primary-color) 100%);
     }
     
@@ -195,17 +197,17 @@ st.markdown("""
     
     /* Metrics professionnelles */
     .stMetric {
-        background: var(--card-bg);
+        background: var(--bg-secondary);
         padding: 1.5rem;
         border-radius: 12px;
         border: 1px solid var(--border-color);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
         transition: all 0.3s ease;
     }
     
     .stMetric:hover {
         border-color: var(--primary-color);
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+        box-shadow: 0 4px 12px rgba(107, 92, 231, 0.12);
     }
     
     .stMetric label {
@@ -224,7 +226,7 @@ st.markdown("""
     
     /* Messages de statut */
     .stSuccess {
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(16, 185, 129, 0.04) 100%);
         border-left: 4px solid var(--success-color);
         border-radius: 8px;
         padding: 1rem;
@@ -232,7 +234,7 @@ st.markdown("""
     }
     
     .stError {
-        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(239, 68, 68, 0.04) 100%);
         border-left: 4px solid var(--error-color);
         border-radius: 8px;
         padding: 1rem;
@@ -240,7 +242,7 @@ st.markdown("""
     }
     
     .stWarning {
-        background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.04) 100%);
         border-left: 4px solid var(--warning-color);
         border-radius: 8px;
         padding: 1rem;
@@ -248,7 +250,7 @@ st.markdown("""
     }
     
     .stInfo {
-        background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.05) 100%);
+        background: linear-gradient(135deg, rgba(107, 92, 231, 0.08) 0%, rgba(107, 92, 231, 0.04) 100%);
         border-left: 4px solid var(--primary-color);
         border-radius: 8px;
         padding: 1rem;
@@ -257,7 +259,7 @@ st.markdown("""
     
     /* Sidebar professionnel */
     section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, var(--dark-bg) 0%, var(--card-bg) 100%);
+        background: linear-gradient(180deg, #FAFBFC 0%, var(--bg-secondary) 100%);
         border-right: 1px solid var(--border-color);
     }
     
@@ -279,7 +281,7 @@ st.markdown("""
     
     /* Expander */
     .streamlit-expanderHeader {
-        background: var(--card-bg);
+        background: var(--bg-secondary);
         border-radius: 10px;
         border: 1px solid var(--border-color);
         color: var(--text-primary);
@@ -289,15 +291,16 @@ st.markdown("""
     
     .streamlit-expanderHeader:hover {
         border-color: var(--primary-color);
-        background: linear-gradient(135deg, var(--card-bg) 0%, rgba(99, 102, 241, 0.1) 100%);
+        background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(107, 92, 231, 0.05) 100%);
     }
     
     /* Tabs */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
-        background: var(--card-bg);
+        background: var(--bg-secondary);
         padding: 0.5rem;
         border-radius: 12px;
+        border: 1px solid var(--border-color);
     }
     
     .stTabs [data-baseweb="tab"] {
@@ -310,7 +313,7 @@ st.markdown("""
     }
     
     .stTabs [data-baseweb="tab"]:hover {
-        background: rgba(99, 102, 241, 0.1);
+        background: rgba(107, 92, 231, 0.08);
         color: var(--primary-color);
     }
     
@@ -328,7 +331,7 @@ st.markdown("""
     
     /* File uploader */
     .stFileUploader {
-        background: var(--card-bg);
+        background: var(--bg-secondary);
         border: 2px dashed var(--border-color);
         border-radius: 12px;
         padding: 2rem;
@@ -337,7 +340,7 @@ st.markdown("""
     
     .stFileUploader:hover {
         border-color: var(--primary-color);
-        background: rgba(99, 102, 241, 0.05);
+        background: rgba(107, 92, 231, 0.03);
     }
     
     /* Select boxes */
@@ -346,7 +349,7 @@ st.markdown("""
     }
     
     .stSelectbox > div > div, .stMultiSelect > div > div {
-        background: var(--card-bg);
+        background: var(--bg-secondary);
         border-color: var(--border-color);
         border-radius: 8px;
     }
@@ -376,7 +379,7 @@ st.markdown("""
         padding: 3rem;
         border-radius: 20px;
         text-align: center;
-        box-shadow: 0 20px 40px rgba(99, 102, 241, 0.4);
+        box-shadow: 0 12px 32px rgba(107, 92, 231, 0.2);
         margin: 2rem 0;
         animation: slideIn 0.5s ease-out;
     }
@@ -399,7 +402,7 @@ st.markdown("""
     }
     
     ::-webkit-scrollbar-track {
-        background: var(--dark-bg);
+        background: #E8EDF5;
     }
     
     ::-webkit-scrollbar-thumb {
@@ -705,12 +708,12 @@ def page_chargement_eda():
                         values=type_counts.values,
                         names=type_counts.index.astype(str),
                         title="Distribution des Types de Données",
-                        color_discrete_sequence=px.colors.sequential.Plasma
+                        color_discrete_sequence=['#6B5CE7', '#8B7EF5', '#A59BF9', '#10B981', '#F59E0B']
                     )
                     fig.update_layout(
                         paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        font=dict(color='#f1f5f9'),
+                        plot_bgcolor='rgba(240, 244, 249, 0.8)',
+                        font=dict(color='#1F1F1F'),
                         title_font_size=16
                     )
                     st.plotly_chart(fig, use_container_width=True)
@@ -746,12 +749,12 @@ def page_chargement_eda():
                 st.session_state.processor.data,
                 x=target_col,
                 title=f"Distribution de {target_col}",
-                color_discrete_sequence=['#6366f1']
+                color_discrete_sequence=['#6B5CE7']
             )
             fig.update_layout(
                 paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(30,41,59,0.5)',
-                font=dict(color='#f1f5f9')
+                plot_bgcolor='rgba(240, 244, 249, 0.8)',
+                font=dict(color='#1F1F1F')
             )
             st.plotly_chart(fig, use_container_width=True)
         
@@ -1250,11 +1253,11 @@ def page_comparaison():
         
         with col2:
             st.markdown("### 📈 Graphique")
-            fig = px.bar(results_df, x='Modèle', y=metric_name, color=metric_name, color_continuous_scale='Plasma')
+            fig = px.bar(results_df, x='Modèle', y=metric_name, color=metric_name, color_continuous_scale=['#6B5CE7', '#8B7EF5', '#A59BF9'])
             fig.update_layout(
                 paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(30,41,59,0.5)',
-                font=dict(color='#f1f5f9')
+                plot_bgcolor='rgba(240, 244, 249, 0.8)',
+                font=dict(color='#1F1F1F')
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -1294,16 +1297,16 @@ def page_historique():
         models_used = [a['model'] for a in st.session_state.analysis_history]
         model_counts = pd.Series(models_used).value_counts()
         
-        fig = px.pie(values=model_counts.values, names=model_counts.index, title="Modèles Utilisés", color_discrete_sequence=px.colors.sequential.Plasma)
-        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', font=dict(color='#f1f5f9'))
+        fig = px.pie(values=model_counts.values, names=model_counts.index, title="Modèles Utilisés", color_discrete_sequence=['#6B5CE7', '#8B7EF5', '#A59BF9', '#10B981', '#F59E0B'])
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', font=dict(color='#1F1F1F'))
         st.plotly_chart(fig, use_container_width=True)
     
     with col2:
         types_used = [a['type'] for a in st.session_state.analysis_history]
         type_counts = pd.Series(types_used).value_counts()
         
-        fig = px.bar(x=type_counts.index, y=type_counts.values, title="Types d'Analyses", color=type_counts.values, color_continuous_scale='Viridis')
-        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(30,41,59,0.5)', font=dict(color='#f1f5f9'))
+        fig = px.bar(x=type_counts.index, y=type_counts.values, title="Types d'Analyses", color=type_counts.values, color_continuous_scale=['#6B5CE7', '#8B7EF5', '#A59BF9'])
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(240, 244, 249, 0.8)', font=dict(color='#1F1F1F'))
         st.plotly_chart(fig, use_container_width=True)
 
 def page_export():
