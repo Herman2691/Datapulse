@@ -120,6 +120,7 @@ Une application web complète pour l'analyse de données et le Machine Learning,
 - **💻 Montre-moi le code** : après chaque entraînement, le code scikit-learn commenté qui reproduit exactement l'analyse, avec les résultats attendus
 - **Export des paramètres (JSON)** : versions, empreinte des données, découpage, prétraitement, hyperparamètres
 - **Référence pour comparaison (JSON)** : paramètres, métriques et prédictions ligne par ligne du jeu de test, pour comparer le résultat d'un code écrit à la main
+- **🎓 Comparer mon code** : déposez le `mes_resultats.json` produit par votre propre code ; DATAPULSE le compare au dernier entraînement (ou à une référence importée) et affiche le verdict, chaque contrôle et des pistes en cas d'écart
 
 ### 📊 Analyses Factorielles
 
@@ -277,6 +278,11 @@ L'application s'ouvrira automatiquement dans votre navigateur à l'adresse : `ht
 - Saisissez les valeurs des features
 - Obtenez une prédiction en temps réel
 
+#### 🎓 Comparer mon code (Optionnel)
+- Refaites l'analyse avec votre propre code scikit-learn (même proportion de test, même graine)
+- Téléchargez `comparateur.py` depuis la page **"🎓 Comparer mon code"** et ajoutez `sauvegarder_resultats(X_test, y_pred, modele)` à la fin de votre code
+- Déposez `mes_resultats.json` : DATAPULSE indique si votre résultat est identique et, sinon, quoi vérifier
+
 #### 7️⃣ Analyses Non-Supervisées (Optionnel)
 - Clustering pour découvrir des groupes
 - ACP pour réduire la dimensionnalité
@@ -298,6 +304,7 @@ Datapulse/
 ├── Datapulse.py              # Application Streamlit principale
 ├── data_processor.py         # Module de traitement ML
 ├── code_generator.py         # Génération du code scikit-learn équivalent
+├── comparateur.py            # Comparaison d'un résultat étudiant avec la référence
 ├── requirements.txt          # Dépendances Python
 └── README.md                 # Documentation
 ```
@@ -326,6 +333,19 @@ Classe `DataProcessor` gérant :
 Génère, à partir des paramètres exportés en JSON, le code Python commenté qui reproduit exactement un entraînement. Utilisable aussi en ligne de commande :
 ```bash
 python code_generator.py parametres.json
+```
+
+#### `comparateur.py`
+Compare le résultat d'un code écrit à la main avec la référence exportée par DATAPULSE : même jeu de test, mêmes prédictions, mêmes probabilités (tolérances du plan). En cas d'écart, il ne dit pas seulement « faux » : il propose des pistes (graine, `test_size`, `stratify`, normalisation oubliée ou ajustée avant le découpage, hyperparamètres).
+
+À la fin du code de l'étudiant :
+```python
+from comparateur import sauvegarder_resultats
+sauvegarder_resultats(X_test, y_pred, modele)   # crée mes_resultats.json
+```
+Puis, dans DATAPULSE (page **🎓 Comparer mon code**) ou en ligne de commande :
+```bash
+python comparateur.py reference.json mes_resultats.json
 ```
 
 ---
