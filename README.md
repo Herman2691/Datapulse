@@ -120,6 +120,7 @@ Une application web complète pour l'analyse de données et le Machine Learning,
 - **💻 Montre-moi le code** : après chaque entraînement, le code scikit-learn commenté qui reproduit exactement l'analyse, avec les résultats attendus
 - **Export des paramètres (JSON)** : versions, empreinte des données, découpage, prétraitement, hyperparamètres
 - **Référence pour comparaison (JSON)** : paramètres, métriques et prédictions ligne par ligne du jeu de test, pour comparer le résultat d'un code écrit à la main
+- **🎓 Comparer mon code** : déposez le `mes_resultats.json` produit par votre propre code ; DATAPULSE le compare au dernier entraînement (ou à une référence importée) et affiche le verdict, chaque contrôle et des pistes en cas d'écart
 
 ### 📊 Analyses Factorielles
 
@@ -277,6 +278,11 @@ L'application s'ouvrira automatiquement dans votre navigateur à l'adresse : `ht
 - Saisissez les valeurs des features
 - Obtenez une prédiction en temps réel
 
+#### 🎓 Comparer mon code (Optionnel)
+- Refaites l'analyse avec votre propre code scikit-learn (même proportion de test, même graine)
+- Téléchargez `comparateur.py` depuis la page **"🎓 Comparer mon code"** et ajoutez `sauvegarder_resultats(X_test, y_pred, modele)` à la fin de votre code
+- Déposez `mes_resultats.json` : DATAPULSE indique si votre résultat est identique et, sinon, quoi vérifier
+
 #### 7️⃣ Analyses Non-Supervisées (Optionnel)
 - Clustering pour découvrir des groupes
 - ACP pour réduire la dimensionnalité
@@ -337,7 +343,7 @@ Compare le résultat d'un code écrit à la main avec la référence exportée p
 from comparateur import sauvegarder_resultats
 sauvegarder_resultats(X_test, y_pred, modele)   # crée mes_resultats.json
 ```
-Puis :
+Puis, dans DATAPULSE (page **🎓 Comparer mon code**) ou en ligne de commande :
 ```bash
 python comparateur.py reference.json mes_resultats.json
 ```

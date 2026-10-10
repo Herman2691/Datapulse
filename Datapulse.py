@@ -16,6 +16,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 import io
+import json
 import os
 import tempfile
 import base64
@@ -24,6 +25,7 @@ from PIL import Image
 # Import du DataProcessor
 from data_processor import DataProcessor, CLASSIFICATION, REGRESSION, CLUSTERING, DIMENSION_REDUCTION, ACM_ANALYSIS, AFC_ANALYSIS
 from code_generator import generer_code
+from comparateur import comparer
 
 # Configuration de la page
 st.set_page_config(
@@ -461,6 +463,7 @@ def main():
              "🔍 Analyse Non-Supervisée",
              "📊 ACM & AFC",
              "🧪 Test du Modèle",
+             "🎓 Comparer mon code",
              "⚖️ Comparaison",
              "📊 Historique",
              "📤 Export"],
@@ -513,6 +516,8 @@ def main():
         page_acm_afc()
     elif page == "🧪 Test du Modèle":
         page_test_modele()
+    elif page == "🎓 Comparer mon code":
+        page_comparer_code()
     elif page == "⚖️ Comparaison":
         page_comparaison()
     elif page == "📊 Historique":
@@ -1288,6 +1293,101 @@ def page_test_modele():
                 st.info(result_msg)
             else:
                 st.error(result_msg)
+
+def page_comparer_code():
+    """Page de comparaison du code d'un étudiant avec la référence DATAPULSE"""
+    
+    st.markdown("## 🎓 Comparer mon code")
+    st.caption("Vérifie que ton propre code scikit-learn obtient exactement les mêmes résultats que DATAPULSE.")
+    
+    with st.expander("📖 Comment faire ?", expanded=True):
+        st.markdown(
+            "1. Entraîne un modèle dans **🎯 Modélisation Supervisée** : il devient la référence "
+            "(ou importe un fichier de référence téléchargé plus tôt).\n"
+            "2. Écris ton code avec le même découpage (même proportion de test, même graine).\n"
+            "3. Place `comparateur.py` à côté de ton code et ajoute ces deux lignes à la fin :"
+        )
+        st.code(
+            "from comparateur import sauvegarder_resultats\n"
+            "sauvegarder_resultats(X_test, y_pred, modele)   # crée mes_resultats.json",
+            language="python"
+        )
+        st.markdown("4. Dépose `mes_resultats.json` ci-dessous.")
+        chemin_module = os.path.join(os.path.dirname(os.path.abspath(__file__)), "comparateur.py")
+        with open(chemin_module, encoding="utf-8") as f:
+            st.download_button(
+                label="📥 Télécharger comparateur.py",
+                data=f.read(),
+                file_name="comparateur.py",
+                mime="text/x-python",
+                key="comparer_module"
+            )
+    
+    st.markdown("### 📌 Référence")
+    instantane = instantane_entrainement()
+    sources = ["Importer un fichier de référence"]
+    if instantane is not None and instantane['reference_json'] is not None:
+        sources.insert(0, "Dernier entraînement de DATAPULSE")
+    source = st.radio("Source de la référence", sources, horizontal=True, key="comparer_source")
+    
+    reference = None
+    if source == "Dernier entraînement de DATAPULSE":
+        reference = json.loads(instantane['reference_json'])
+        params = reference['parametres']
+        st.info(
+            f"**{params['modele']['nom']}** • cible : {params['cible']['colonne']} • "
+            f"test={params['decoupage']['test_size']:.0%} • graine={params['decoupage']['random_state']}"
+        )
+    else:
+        fichier_ref = st.file_uploader("Fichier de référence (reference_….json)", type=['json'], key="comparer_ref")
+        if fichier_ref is not None:
+            try:
+                reference = json.loads(fichier_ref.getvalue().decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                st.error("❌ Ce fichier n'est pas un JSON valide")
+    
+    st.markdown("### 📤 Tes résultats")
+    fichier_etu = st.file_uploader("Ton fichier mes_resultats.json", type=['json'], key="comparer_etudiant")
+    
+    if reference is None or fichier_etu is None:
+        return
+    
+    try:
+        etudiant = json.loads(fichier_etu.getvalue().decode("utf-8"))
+        resultat = comparer(reference, etudiant)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        st.error("❌ Ton fichier de résultats n'est pas un JSON valide")
+        return
+    except ValueError as e:
+        st.error(f"❌ {e}")
+        return
+    except (KeyError, TypeError):
+        st.error("❌ Ton fichier de résultats est incomplet : crée-le avec sauvegarder_resultats(X_test, y_pred, modele)")
+        return
+    
+    st.markdown("---")
+    if resultat.conforme:
+        st.success(f"✅ {resultat.verdict}")
+    else:
+        st.error(f"❌ {resultat.verdict}")
+    
+    st.markdown("#### 🔎 Contrôles")
+    for controle in resultat.controles:
+        st.markdown(f"{'✅' if controle.ok else '❌'} **{controle.nom}** : {controle.detail}")
+    
+    if resultat.pistes:
+        st.markdown("#### 💡 Pistes à vérifier")
+        for piste in resultat.pistes:
+            st.markdown(f"- {piste}")
+    
+    st.download_button(
+        label="📥 Télécharger le rapport (JSON)",
+        data=json.dumps(resultat.to_dict(), ensure_ascii=False, indent=2),
+        file_name=f"rapport_comparaison_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+        mime="application/json",
+        width="stretch",
+        key="comparer_rapport"
+    )
 
 def page_comparaison():
     """Page de comparaison"""
