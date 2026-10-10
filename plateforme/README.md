@@ -4,11 +4,14 @@ Prototype du module 1 « Ma première classification » du plan `plan-plateforme
 
 Tout s'exécute **dans le navigateur** (JupyterLite / Pyodide) : rien à installer pour l'étudiant, aucun serveur de calcul.
 
+**▶️ Ouvrir le module 1 en ligne** : https://herman2691.github.io/Datapulse/lab/index.html?path=module1_premiere_classification.ipynb
+
 ## Contenu
 
 ```
 plateforme/
 ├── construire_site.py                        # Construit le site JupyterLite (dossier _site)
+├── requirements-site.txt                     # Versions testées pour construire le site
 ├── overrides.json                            # Interface JupyterLite en français par défaut
 └── module1/
     ├── module1_premiere_classification.ipynb # Étapes A à D : leçon, quiz, DATAPULSE, lecture du code, code à trous
@@ -44,12 +47,18 @@ La progression est enregistrée dans `progression_module1.json`, le journal dans
 Dans un environnement virtuel séparé de celui de DATAPULSE :
 
 ```bash
-pip install jupyterlite-core jupyterlite-pyodide-kernel jupyter_server jupyterlab_server jupyterlab-language-pack-fr-FR
+pip install -r plateforme/requirements-site.txt
 python plateforme/construire_site.py
 python -m http.server -d plateforme/_site 8000
 ```
 
 Puis ouvrir http://localhost:8000. Le dossier `plateforme/_site` est un site statique : il se publie tel quel sur GitHub Pages, Netlify, etc.
+
+### Publication automatique
+
+Le workflow `.github/workflows/plateforme-pages.yml` construit le site et le publie sur GitHub Pages à chaque modification de `plateforme/` ou de `comparateur.py` dans `master`. On peut aussi le lancer à la main depuis l'onglet *Actions* (« Run workflow »).
+
+Prérequis, une seule fois : *Settings → Pages → Build and deployment → Source : GitHub Actions*.
 
 Sans JupyterLite, les notebooks s'ouvrent aussi dans Jupyter classique, depuis le dossier `plateforme/module1` (choisir le noyau Python 3).
 

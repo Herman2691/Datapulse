@@ -352,6 +352,8 @@ python comparateur.py reference.json mes_resultats.json
 #### `plateforme/`
 Prototype du module 1 de la plateforme d'apprentissage : deux notebooks (leçon, quiz, code à trous avec indices, défi, comparaison avec DATAPULSE, bilan) qui s'exécutent dans le navigateur avec JupyterLite. Voir [plateforme/README.md](plateforme/README.md).
 
+▶️ [Ouvrir le module 1 en ligne](https://herman2691.github.io/Datapulse/lab/index.html?path=module1_premiere_classification.ipynb)
+
 ---
 
 ## 🤖 Algorithmes Disponibles
