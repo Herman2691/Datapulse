@@ -115,6 +115,7 @@ Une application web complète pour l'analyse de données et le Machine Learning,
 
 ### 🎓 Reproductibilité et Apprentissage
 
+- **📚 Cours** : la théorie du module 1 (modèle, jeu de test, régression logistique, matrice de confusion, lecture du code) avec des visualisations interactives, un quiz, le chargement des données du module en un clic et les liens vers les exercices
 - **Réglages du découpage** : proportion du jeu de test (10 à 40 %) et graine aléatoire, sur les pages Modélisation et Comparaison
 - **Prétraitement sans fuite de données** : imputation, normalisation et encodage dans un `Pipeline` scikit-learn, appris sur le jeu d'entraînement uniquement (et réappris dans chaque pli de validation croisée)
 - **💻 Montre-moi le code** : après chaque entraînement, le code scikit-learn commenté qui reproduit exactement l'analyse, avec les résultats attendus
@@ -305,6 +306,7 @@ Datapulse/
 ├── data_processor.py         # Module de traitement ML
 ├── code_generator.py         # Génération du code scikit-learn équivalent
 ├── comparateur.py            # Comparaison d'un résultat étudiant avec la référence
+├── cours.py                  # Contenu de la page Cours (leçons, quiz)
 ├── plateforme/               # Prototype de la plateforme d'apprentissage (module 1, JupyterLite)
 ├── requirements.txt          # Dépendances Python
 └── README.md                 # Documentation
