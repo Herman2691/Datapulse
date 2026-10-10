@@ -80,6 +80,8 @@ class DataProcessor:
         self.y_test = None
         self.X_train_raw = None
         self.X_test_raw = None
+        self.test_size = 0.2
+        self.random_state = 42
         self.X_full_processed = None
         self.preprocessor = None
         self.pipeline = None
@@ -225,9 +227,15 @@ class DataProcessor:
         
         return preprocessor
         
-    def preprocess_data(self, target_column, analysis_type):
-        """Prétraite les données selon le type d'analyse"""
+    def preprocess_data(self, target_column, analysis_type, test_size=0.2, random_state=42):
+        """Prétraite les données selon le type d'analyse
+
+        test_size et random_state règlent le découpage train/test ; la graine est
+        aussi appliquée aux modèles et à la courbe d'apprentissage (run_model).
+        """
         self.current_model_type = analysis_type
+        self.test_size = test_size
+        self.random_state = random_state
         
         try:
             if analysis_type in [CLASSIFICATION, REGRESSION]:
@@ -250,7 +258,7 @@ class DataProcessor:
                 # seront apprises sur le train uniquement (dans run_model), sans fuite.
                 stratify = self.y if analysis_type == CLASSIFICATION else None
                 self.X_train_raw, self.X_test_raw, self.y_train, self.y_test = train_test_split(
-                    X_raw, self.y, test_size=0.2, random_state=42, stratify=stratify
+                    X_raw, self.y, test_size=test_size, random_state=random_state, stratify=stratify
                 )
 
                 # Prétraitement non ajusté, cloné et ajusté à chaque entraînement
@@ -476,9 +484,12 @@ class DataProcessor:
 
         # Pipeline prétraitement + modèle : ajusté sur le train uniquement,
         # et réajusté dans chaque pli de validation croisée.
+        model = clone(models[model_name])
+        if 'random_state' in model.get_params():
+            model.set_params(random_state=self.random_state)
         self.pipeline = Pipeline([
             ('preprocessor', clone(self.preprocessor)),
-            ('model', clone(models[model_name]))
+            ('model', model)
         ])
 
         print(f"🔧 Entraînement de {model_name}...")
@@ -494,7 +505,8 @@ class DataProcessor:
         
         report = f"🎯 **RAPPORT: {model_name}**\n\n"
         report += f"**Type:** {analysis_type}\n"
-        report += f"**Échantillons:** Train={len(self.X_train)}, Test={len(self.X_test)}\n\n"
+        report += f"**Échantillons:** Train={len(self.X_train)}, Test={len(self.X_test)}\n"
+        report += f"**Découpage:** test={self.test_size:.0%}, graine={self.random_state}\n\n"
         
         main_img_str = None
         tree_img_str = None
@@ -661,7 +673,7 @@ class DataProcessor:
                 cv=min(5, len(y_combined) // 20),
                 scoring=scoring,
                 n_jobs=-1,
-                random_state=42
+                random_state=self.random_state
             )
             
             train_mean = np.mean(train_scores, axis=1)

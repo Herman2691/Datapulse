@@ -808,6 +808,26 @@ def page_chargement_eda():
                         
                         st.info(report)
 
+def reglages_decoupage(key_prefix):
+    """Réglages du découpage train/test : proportion de test et graine aléatoire"""
+    with st.expander("⚙️ Réglages du découpage", expanded=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            test_pct = st.slider(
+                "Proportion du jeu de test (%)",
+                min_value=10, max_value=40, value=20, step=5,
+                help="Part des données mise de côté pour évaluer le modèle",
+                key=f"{key_prefix}_test_pct"
+            )
+        with col2:
+            random_state = st.number_input(
+                "Graine aléatoire",
+                min_value=0, max_value=9999, value=42, step=1,
+                help="Fixe le hasard du découpage et des modèles : même graine = mêmes résultats",
+                key=f"{key_prefix}_seed"
+            )
+    return test_pct / 100, int(random_state)
+
 def page_supervise():
     """Page de modélisation supervisée"""
     
@@ -864,15 +884,19 @@ def page_supervise():
         
         if selected_model in model_info:
             st.info(f"ℹ️ {model_info[selected_model]}")
-    
+
+    test_size, random_state = reglages_decoupage("supervise")
+
     st.markdown("---")
-    
+
     if st.button("🚀 ENTRAÎNER & ÉVALUER LE MODÈLE", use_container_width=True, type="primary"):
-        
+
         with st.spinner("⏳ Prétraitement des données..."):
             success = st.session_state.processor.preprocess_data(
                 target_column=st.session_state.target_column,
-                analysis_type=analysis_type
+                analysis_type=analysis_type,
+                test_size=test_size,
+                random_state=random_state
             )
         
         if not success:
@@ -897,6 +921,8 @@ def page_supervise():
             'model': selected_model,
             'type': analysis_type,
             'target': st.session_state.target_column,
+            'test_size': test_size,
+            'random_state': random_state,
             'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         
@@ -1187,19 +1213,27 @@ def page_comparaison():
     if len(selected_models) < 2:
         st.warning("⚠️ Sélectionnez au moins 2 modèles")
         return
-    
+
+    test_size, random_state = reglages_decoupage("comparaison")
+
     if st.button("▶ LANCER LA COMPARAISON", use_container_width=True, type="primary"):
         if 'target_column' not in st.session_state:
             st.error("❌ Définissez une variable cible")
             return
-        
+
         results = []
-        
+
         with st.spinner("Prétraitement..."):
-            st.session_state.processor.preprocess_data(
+            success = st.session_state.processor.preprocess_data(
                 target_column=st.session_state.target_column,
-                analysis_type=analysis_type
+                analysis_type=analysis_type,
+                test_size=test_size,
+                random_state=random_state
             )
+
+        if not success:
+            st.error("❌ Échec du prétraitement")
+            return
         
         progress_bar = st.progress(0)
         
