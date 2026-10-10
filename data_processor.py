@@ -8,6 +8,7 @@ Date: 2025
 
 import hashlib
 import json
+import os
 import platform
 import pandas as pd
 import numpy as np
@@ -87,6 +88,10 @@ class DataProcessor:
         self.test_size = 0.2
         self.random_state = 42
         self.run_parameters = None
+        self.run_metrics = None
+        self.source_file = None
+        self.read_options = None
+        self.columns_stripped = False
         self.X_full_processed = None
         self.preprocessor = None
         self.pipeline = None
@@ -179,23 +184,32 @@ class DataProcessor:
         buf.seek(0)
         return base64.b64encode(buf.getvalue()).decode()
 
-    def load_data(self, file_path):
-        """Charge un fichier CSV ou Excel"""
+    def load_data(self, file_path, display_name=None):
+        """Charge un fichier CSV ou Excel
+
+        display_name : nom d'origine du fichier (l'interface charge une copie temporaire)
+        """
         try:
             file_extension = file_path.lower().split('.')[-1]
             
             if file_extension in ['xlsx', 'xls']:
                 print(f"📊 Chargement d'un fichier Excel...")
-                self.data = pd.read_excel(file_path, engine='openpyxl' if file_extension == 'xlsx' else None)
+                self.read_options = {"fonction": "pandas.read_excel",
+                                     "engine": 'openpyxl' if file_extension == 'xlsx' else None}
+                self.data = pd.read_excel(file_path, engine=self.read_options["engine"])
                 print(f"✅ Fichier Excel chargé avec succès")
             else:
+                self.read_options = {"fonction": "pandas.read_csv", "sep": None, "engine": 'python', "encoding": 'utf-8'}
                 self.data = pd.read_csv(file_path, sep=None, engine='python', encoding='utf-8')
             
             if self.data.empty:
                 print("❌ Erreur: Le fichier est vide")
                 return False
 
+            self.source_file = display_name or os.path.basename(file_path)
+            original_columns = self.data.columns.tolist()
             self.data.columns = self.data.columns.str.strip()
+            self.columns_stripped = self.data.columns.tolist() != original_columns
             self.column_names = self.data.columns.tolist()
             
             print(f"✅ Données chargées: {len(self.data)} lignes, {len(self.column_names)} colonnes")
@@ -508,6 +522,7 @@ class DataProcessor:
         self.X_train = pd.DataFrame(self.preprocessor.transform(self.X_train_raw), columns=feature_names)
         self.X_test = pd.DataFrame(self.preprocessor.transform(self.X_test_raw), columns=feature_names)
         self.run_parameters = self._build_run_parameters(model_name, analysis_type, scoring)
+        self.run_metrics = None
         
         report = f"🎯 **RAPPORT: {model_name}**\n\n"
         report += f"**Type:** {analysis_type}\n"
@@ -528,6 +543,11 @@ class DataProcessor:
             # Validation croisée
             cv_scores = cross_val_score(self.pipeline, self.X_train_raw, self.y_train,
                                        cv=5, scoring='accuracy')
+            self.run_metrics = {
+                "accuracy": float(accuracy),
+                "matrice_confusion": confusion_matrix(self.y_test, y_pred).tolist(),
+                "cv_moyenne": float(cv_scores.mean())
+            }
             report += f"**Validation Croisée (5-fold):**\n"
             report += f"   Moyenne: {cv_scores.mean():.4f} (±{cv_scores.std()*2:.4f})\n\n"
             
@@ -571,6 +591,12 @@ class DataProcessor:
             # Validation croisée
             cv_scores = cross_val_score(self.pipeline, self.X_train_raw, self.y_train,
                                        cv=5, scoring='r2')
+            self.run_metrics = {
+                "r2": float(r2),
+                "mse": float(mse),
+                "mae": float(mae),
+                "cv_moyenne": float(cv_scores.mean())
+            }
             
             report += f"**Métriques d'Erreur:**\n"
             report += f"   • MSE: {mse:.4f}\n"
@@ -1368,6 +1394,9 @@ class DataProcessor:
                 "numpy": np.__version__
             },
             "donnees": {
+                "fichier": self.source_file,
+                "lecture": self.read_options,
+                "noms_colonnes_nettoyes": self.columns_stripped,
                 "n_lignes": len(self.data),
                 "n_colonnes": self.data.shape[1],
                 "colonnes": self.column_names,

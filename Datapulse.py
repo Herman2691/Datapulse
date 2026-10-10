@@ -21,6 +21,7 @@ from PIL import Image
 
 # Import du DataProcessor
 from data_processor import DataProcessor, CLASSIFICATION, REGRESSION, CLUSTERING, DIMENSION_REDUCTION, ACM_ANALYSIS, AFC_ANALYSIS
+from code_generator import generer_code
 
 # Configuration de la page
 st.set_page_config(
@@ -673,7 +674,7 @@ def page_chargement_eda():
             with open(temp_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
             
-            if st.session_state.processor.load_data(temp_path):
+            if st.session_state.processor.load_data(temp_path, display_name=uploaded_file.name):
                 st.session_state.data_loaded = True
                 
                 file_type = "Excel" if file_extension in ['xlsx', 'xls'] else "CSV"
@@ -852,6 +853,25 @@ def afficher_export_parametres(key_prefix):
         key=f"{key_prefix}_params_json"
     )
 
+def afficher_code(key_prefix):
+    """« Montre-moi le code » : code scikit-learn qui reproduit exactement le dernier entraînement"""
+    processor = st.session_state.processor
+    if processor.run_parameters is None:
+        return
+    
+    code = generer_code(processor.run_parameters, processor.run_metrics)
+    with st.expander("💻 Montre-moi le code"):
+        st.caption("Ce code reproduit exactement l'analyse ci-dessus. Place-le à côté de ton fichier de données et exécute-le.")
+        st.code(code, language="python")
+        st.download_button(
+            label="📥 Télécharger le code (.py)",
+            data=code,
+            file_name=f"analyse_{datetime.now().strftime('%Y%m%d_%H%M%S')}.py",
+            mime="text/x-python",
+            use_container_width=True,
+            key=f"{key_prefix}_code_py"
+        )
+
 def page_supervise():
     """Page de modélisation supervisée"""
     
@@ -973,6 +993,7 @@ def page_supervise():
             img = Image.open(io.BytesIO(img_data))
             st.image(img, use_container_width=True)
 
+        afficher_code("supervise")
         afficher_export_parametres("supervise")
 
 def page_non_supervise():
@@ -1422,6 +1443,7 @@ def page_export():
     
     with export_tabs[3]:
         st.markdown("### Sauvegarde Modèle")
+        afficher_code("export")
         afficher_export_parametres("export")
         if st.session_state.processor.run_parameters is not None:
             st.info("🚧 Sauvegarde du modèle (pickle) en développement")
