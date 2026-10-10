@@ -6,8 +6,15 @@ Auteur: Herman Kandolo
 Date: 2025
 """
 
+import hashlib
+import json
+import os
+import platform
+import sys
 import pandas as pd
 import numpy as np
+import sklearn
+from sklearn.base import clone
 from sklearn.model_selection import train_test_split, learning_curve, cross_val_score
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
 from sklearn.impute import SimpleImputer
@@ -41,6 +48,15 @@ import warnings
 from datetime import datetime
 
 warnings.filterwarnings('ignore')
+
+
+def _log(message):
+    """print tolérant : une console Windows en cp1252 ne sait pas afficher les emojis"""
+    try:
+        print(message)
+    except UnicodeEncodeError:
+        encodage = getattr(sys.stdout, "encoding", None) or "ascii"
+        print(message.encode(encodage, errors="replace").decode(encodage))
 
 # Configuration du style
 sns.set_theme(style="darkgrid")
@@ -77,8 +93,19 @@ class DataProcessor:
         self.X_test = None
         self.y_train = None
         self.y_test = None
+        self.X_train_raw = None
+        self.X_test_raw = None
+        self.test_size = 0.2
+        self.random_state = 42
+        self.run_parameters = None
+        self.run_metrics = None
+        self.run_predictions = None
+        self.source_file = None
+        self.read_options = None
+        self.columns_stripped = False
         self.X_full_processed = None
         self.preprocessor = None
+        self.pipeline = None
         self.current_model = None
         self.current_model_type = None
         self.current_model_name = None
@@ -168,37 +195,57 @@ class DataProcessor:
         buf.seek(0)
         return base64.b64encode(buf.getvalue()).decode()
 
-    def load_data(self, file_path):
-        """Charge un fichier CSV ou Excel"""
+    def load_data(self, file_path, display_name=None):
+        """Charge un fichier CSV ou Excel
+
+        display_name : nom d'origine du fichier (l'interface charge une copie temporaire)
+        """
         try:
             file_extension = file_path.lower().split('.')[-1]
             
             if file_extension in ['xlsx', 'xls']:
-                print(f"📊 Chargement d'un fichier Excel...")
-                self.data = pd.read_excel(file_path, engine='openpyxl' if file_extension == 'xlsx' else None)
-                print(f"✅ Fichier Excel chargé avec succès")
+                _log(f"📊 Chargement d'un fichier Excel...")
+                self.read_options = {"fonction": "pandas.read_excel",
+                                     "engine": 'openpyxl' if file_extension == 'xlsx' else None}
+                self.data = pd.read_excel(file_path, engine=self.read_options["engine"])
+                _log(f"✅ Fichier Excel chargé avec succès")
             else:
-                self.data = pd.read_csv(file_path, sep=None, engine='python', encoding='utf-8')
+                # utf-8-sig : UTF-8, avec ou sans la marque BOM qu'ajoute Excel (« CSV UTF-8 »)
+                # cp1252 : CSV enregistré par Excel sous Windows (accents, €)
+                # latin-1 : dernier recours, il accepte n'importe quel octet
+                for encoding in ['utf-8-sig', 'cp1252', 'latin-1']:
+                    try:
+                        self.data = pd.read_csv(file_path, sep=None, engine='python', encoding=encoding)
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                self.read_options = {"fonction": "pandas.read_csv", "sep": None, "engine": 'python', "encoding": encoding}
+                if encoding != 'utf-8-sig':
+                    _log(f"ℹ️ Fichier CSV lu avec l'encodage {encoding}")
             
             if self.data.empty:
-                print("❌ Erreur: Le fichier est vide")
+                _log("❌ Erreur: Le fichier est vide")
                 return False
 
+            self.source_file = display_name or os.path.basename(file_path)
+            original_columns = self.data.columns.tolist()
             self.data.columns = self.data.columns.str.strip()
+            self.columns_stripped = self.data.columns.tolist() != original_columns
             self.column_names = self.data.columns.tolist()
             
-            print(f"✅ Données chargées: {len(self.data)} lignes, {len(self.column_names)} colonnes")
+            _log(f"✅ Données chargées: {len(self.data)} lignes, {len(self.column_names)} colonnes")
             return True
             
         except Exception as e:
-            print(f"❌ Erreur lors du chargement: {e}")
+            _log(f"❌ Erreur lors du chargement: {e}")
             self.data = None
             self.column_names = []
             return False
 
     def _create_preprocessor(self, X_raw):
         """Crée un pipeline de prétraitement adaptatif"""
-        numeric_features = X_raw.select_dtypes(include=['int64', 'float64']).columns.tolist()
+        # Booléens inclus : vrai/faux deviennent 1/0
+        numeric_features = X_raw.select_dtypes(include=['number', 'bool']).columns.tolist()
         categorical_features = X_raw.select_dtypes(include=['object', 'category']).columns.tolist()
 
         numeric_transformer = Pipeline(steps=[
@@ -221,14 +268,20 @@ class DataProcessor:
         
         return preprocessor
         
-    def preprocess_data(self, target_column, analysis_type):
-        """Prétraite les données selon le type d'analyse"""
+    def preprocess_data(self, target_column, analysis_type, test_size=0.2, random_state=42):
+        """Prétraite les données selon le type d'analyse
+
+        test_size et random_state règlent le découpage train/test ; la graine est
+        aussi appliquée aux modèles et à la courbe d'apprentissage (run_model).
+        """
         self.current_model_type = analysis_type
+        self.test_size = test_size
+        self.random_state = random_state
         
         try:
             if analysis_type in [CLASSIFICATION, REGRESSION]:
                 if not target_column or target_column not in self.data.columns:
-                    print("❌ Erreur: Colonne cible non définie")
+                    _log("❌ Erreur: Colonne cible non définie")
                     return False
 
                 self.target_column = target_column
@@ -242,19 +295,19 @@ class DataProcessor:
                     else:
                         self.label_encoder = None
 
-                self.preprocessor = self._create_preprocessor(X_raw)
-                self.preprocessor.fit(X_raw)
-                
-                X_processed = self.preprocessor.transform(X_raw)
-                feature_names = self.preprocessor.get_feature_names_out()
-                X = pd.DataFrame(X_processed, columns=feature_names)
-
+                # Découpage AVANT tout ajustement : l'imputation et la normalisation
+                # seront apprises sur le train uniquement (dans run_model), sans fuite.
                 stratify = self.y if analysis_type == CLASSIFICATION else None
-                self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-                    X, self.y, test_size=0.2, random_state=42, stratify=stratify
+                self.X_train_raw, self.X_test_raw, self.y_train, self.y_test = train_test_split(
+                    X_raw, self.y, test_size=test_size, random_state=random_state, stratify=stratify
                 )
-                
-                print(f"✅ Prétraitement: Train={len(self.X_train)}, Test={len(self.X_test)}")
+
+                # Prétraitement non ajusté, cloné et ajusté à chaque entraînement
+                self.preprocessor = self._create_preprocessor(X_raw)
+                self.pipeline = None
+                self.X_train = self.X_test = None
+
+                _log(f"✅ Prétraitement: Train={len(self.X_train_raw)}, Test={len(self.X_test_raw)}")
                 return True
 
             elif analysis_type in [CLUSTERING, DIMENSION_REDUCTION, ACM_ANALYSIS, AFC_ANALYSIS]:
@@ -272,13 +325,13 @@ class DataProcessor:
                 
                 self.X_train = self.X_test = self.y_train = self.y_test = None
                 
-                print(f"✅ Prétraitement non-supervisé: {self.X_full_processed.shape[0]} échantillons")
+                _log(f"✅ Prétraitement non-supervisé: {self.X_full_processed.shape[0]} échantillons")
                 return True
 
             return False
 
         except Exception as e:
-            print(f"❌ Erreur prétraitement: {e}")
+            _log(f"❌ Erreur prétraitement: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -453,7 +506,7 @@ class DataProcessor:
 
     def run_model(self, model_name, analysis_type):
         """Entraîne et évalue un modèle avec visualisations complètes"""
-        if self.X_train is None or self.y_train is None:
+        if self.X_train_raw is None or self.y_train is None:
             return "❌ Données d'entraînement non préparées.", None, None, None
 
         if analysis_type == CLASSIFICATION:
@@ -469,15 +522,35 @@ class DataProcessor:
             return "Modèle inconnu.", None, None, None
 
         self.current_model_name = model_name
-        self.current_model = models[model_name]
-        
-        print(f"🔧 Entraînement de {model_name}...")
-        self.current_model.fit(self.X_train, self.y_train)
-        y_pred = self.current_model.predict(self.X_test)
+
+        # Pipeline prétraitement + modèle : ajusté sur le train uniquement,
+        # et réajusté dans chaque pli de validation croisée.
+        model = clone(models[model_name])
+        if 'random_state' in model.get_params():
+            model.set_params(random_state=self.random_state)
+        self.pipeline = Pipeline([
+            ('preprocessor', clone(self.preprocessor)),
+            ('model', model)
+        ])
+
+        _log(f"🔧 Entraînement de {model_name}...")
+        self.pipeline.fit(self.X_train_raw, self.y_train)
+        y_pred = self.pipeline.predict(self.X_test_raw)
+
+        # Étapes ajustées, utilisées par la visualisation et la prédiction unitaire
+        self.preprocessor = self.pipeline.named_steps['preprocessor']
+        self.current_model = self.pipeline.named_steps['model']
+        feature_names = self.preprocessor.get_feature_names_out()
+        self.X_train = pd.DataFrame(self.preprocessor.transform(self.X_train_raw), columns=feature_names)
+        self.X_test = pd.DataFrame(self.preprocessor.transform(self.X_test_raw), columns=feature_names)
+        self.run_parameters = self._build_run_parameters(model_name, analysis_type, scoring)
+        self.run_metrics = None
+        self.run_predictions = self._build_run_predictions(y_pred, analysis_type)
         
         report = f"🎯 **RAPPORT: {model_name}**\n\n"
         report += f"**Type:** {analysis_type}\n"
-        report += f"**Échantillons:** Train={len(self.X_train)}, Test={len(self.X_test)}\n\n"
+        report += f"**Échantillons:** Train={len(self.X_train)}, Test={len(self.X_test)}\n"
+        report += f"**Découpage:** test={self.test_size:.0%}, graine={self.random_state}\n\n"
         
         main_img_str = None
         tree_img_str = None
@@ -491,8 +564,14 @@ class DataProcessor:
             report += f"**Précision Globale:** {accuracy:.4f} ({accuracy*100:.2f}%)\n\n"
             
             # Validation croisée
-            cv_scores = cross_val_score(self.current_model, self.X_train, self.y_train, 
+            cv_scores = cross_val_score(self.pipeline, self.X_train_raw, self.y_train,
                                        cv=5, scoring='accuracy')
+            self.run_metrics = {
+                "accuracy": float(accuracy),
+                "matrice_confusion": confusion_matrix(self.y_test, y_pred).tolist(),
+                "cv_moyenne": float(cv_scores.mean()),
+                "cv_scores": cv_scores.tolist()
+            }
             report += f"**Validation Croisée (5-fold):**\n"
             report += f"   Moyenne: {cv_scores.mean():.4f} (±{cv_scores.std()*2:.4f})\n\n"
             
@@ -534,8 +613,15 @@ class DataProcessor:
             r2 = r2_score(self.y_test, y_pred)
             
             # Validation croisée
-            cv_scores = cross_val_score(self.current_model, self.X_train, self.y_train,
+            cv_scores = cross_val_score(self.pipeline, self.X_train_raw, self.y_train,
                                        cv=5, scoring='r2')
+            self.run_metrics = {
+                "r2": float(r2),
+                "mse": float(mse),
+                "mae": float(mae),
+                "cv_moyenne": float(cv_scores.mean()),
+                "cv_scores": cv_scores.tolist()
+            }
             
             report += f"**Métriques d'Erreur:**\n"
             report += f"   • MSE: {mse:.4f}\n"
@@ -630,21 +716,21 @@ class DataProcessor:
         
         # COURBE D'APPRENTISSAGE
         try:
-            print("📊 Génération courbe d'apprentissage...")
-            X_combined = pd.concat([self.X_train, self.X_test])
+            _log("📊 Génération courbe d'apprentissage...")
+            X_combined = pd.concat([self.X_train_raw, self.X_test_raw])
             y_combined = np.concatenate([self.y_train, self.y_test])
-            
+
             train_sizes = np.linspace(0.1, 1.0, 10)
-            
+
             train_sizes_abs, train_scores, val_scores = learning_curve(
-                self.current_model,
+                self.pipeline,
                 X_combined,
                 y_combined,
                 train_sizes=train_sizes,
                 cv=min(5, len(y_combined) // 20),
                 scoring=scoring,
                 n_jobs=-1,
-                random_state=42
+                random_state=self.random_state
             )
             
             train_mean = np.mean(train_scores, axis=1)
@@ -696,9 +782,9 @@ class DataProcessor:
                 
         except Exception as e:
             report += f"\n⚠️ Impossible de générer la courbe: {e}\n"
-            print(f"Erreur courbe: {e}")
+            _log(f"Erreur courbe: {e}")
         
-        print(f"✅ Entraînement de {model_name} terminé!")
+        _log(f"✅ Entraînement de {model_name} terminé!")
         return report, main_img_str, tree_img_str, learning_curve_img
 
     def run_clustering(self, model_name, n_clusters):
@@ -715,7 +801,7 @@ class DataProcessor:
         try:
             if model_name == "K-Means":
                 
-                print(f"🔄 K-Means avec k={n_clusters}...")
+                _log(f"🔄 K-Means avec k={n_clusters}...")
                 kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
                 labels = kmeans.fit_predict(X_clust)
                 
@@ -768,7 +854,7 @@ class DataProcessor:
                     main_img_str = self._plot_to_base64(fig)
                     
                     # MÉTHODE DU COUDE
-                    print("📊 Génération méthode du coude...")
+                    _log("📊 Génération méthode du coude...")
                     inertias = []
                     silhouettes = []
                     K_range = range(2, min(11, len(X_clust) // 2))
@@ -807,7 +893,7 @@ class DataProcessor:
 
             elif model_name == "CAH (Hierarchical)":
                 
-                print("🌳 Calcul de la hiérarchie...")
+                _log("🌳 Calcul de la hiérarchie...")
                 linked = linkage(X_clust, method='ward')
                 
                 fig, ax = plt.subplots(figsize=(16, 10))
@@ -847,11 +933,11 @@ class DataProcessor:
                 report += f"   • Seuil suggéré (70%): {0.7*max(linked[:,2]):.2f}\n"
                 report += f"   • Pour {n_clusters} clusters, couper à la ligne rouge\n"
 
-            print(f"✅ Clustering {model_name} terminé!")
+            _log(f"✅ Clustering {model_name} terminé!")
             return report, main_img_str, secondary_img_str
 
         except Exception as e:
-            print(f"❌ Erreur clustering: {e}")
+            _log(f"❌ Erreur clustering: {e}")
             import traceback
             traceback.print_exc()
             return f"❌ Erreur lors du clustering: {e}", None, None
@@ -864,7 +950,7 @@ class DataProcessor:
         try:
             n_components = min(n_components, self.X_full_processed.shape[1])
             
-            print(f"🔄 Calcul de l'ACP avec {n_components} composantes...")
+            _log(f"🔄 Calcul de l'ACP avec {n_components} composantes...")
             pca = PCA(n_components=n_components)
             self.pca_result = pca.fit_transform(self.X_full_processed)
             
@@ -1002,11 +1088,11 @@ class DataProcessor:
                         contrib = components[i][idx]
                         report += f"      • {feature_names[idx]}: {contrib:.3f}\n"
 
-            print("✅ ACP terminée!")
+            _log("✅ ACP terminée!")
             return report, scree_img, scatter_img
             
         except Exception as e:
-            print(f"❌ Erreur ACP: {e}")
+            _log(f"❌ Erreur ACP: {e}")
             import traceback
             traceback.print_exc()
             return f"❌ Erreur lors de l'ACP: {e}", None, None
@@ -1026,7 +1112,7 @@ class DataProcessor:
             if len(categorical_cols) < 2:
                 return "❌ Au moins 2 variables catégorielles nécessaires pour l'ACM.", None, None
             
-            print(f"📊 ACM sur {len(categorical_cols)} variables...")
+            _log(f"📊 ACM sur {len(categorical_cols)} variables...")
             
             # Créer le tableau disjonctif complet
             data_acm = self.data[categorical_cols].copy()
@@ -1122,11 +1208,11 @@ class DataProcessor:
                 plt.tight_layout()
                 projection_img = self._plot_to_base64(fig)
             
-            print("✅ ACM terminée!")
+            _log("✅ ACM terminée!")
             return report, scree_img, projection_img
             
         except Exception as e:
-            print(f"❌ Erreur ACM: {e}")
+            _log(f"❌ Erreur ACM: {e}")
             import traceback
             traceback.print_exc()
             return f"❌ Erreur lors de l'ACM: {e}", None, None
@@ -1140,7 +1226,7 @@ class DataProcessor:
             if row_col not in self.data.columns or col_col not in self.data.columns:
                 return "❌ Colonnes invalides.", None, None
             
-            print(f"📊 AFC: {row_col} vs {col_col}...")
+            _log(f"📊 AFC: {row_col} vs {col_col}...")
             
             # Créer le tableau de contingence
             contingency_table = pd.crosstab(self.data[row_col], self.data[col_col])
@@ -1273,19 +1359,163 @@ class DataProcessor:
             except Exception as e:
                 report += f"\n⚠️ Projection non disponible: {e}\n"
             
-            print("✅ AFC terminée!")
+            _log("✅ AFC terminée!")
             return report, contingency_img, projection_img
             
         except Exception as e:
-            print(f"❌ Erreur AFC: {e}")
+            _log(f"❌ Erreur AFC: {e}")
             import traceback
             traceback.print_exc()
             return f"❌ Erreur lors de l'AFC: {e}", None, None
 
+    @staticmethod
+    def _to_jsonable(value):
+        """Convertit récursivement une valeur (paramètres sklearn, types numpy) en valeur JSON"""
+        if isinstance(value, dict):
+            return {str(k): DataProcessor._to_jsonable(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [DataProcessor._to_jsonable(v) for v in value]
+        if isinstance(value, np.generic):
+            value = value.item()
+        if isinstance(value, float) and np.isnan(value):
+            return "NaN"  # JSON standard n'a pas de NaN ; null signifierait None
+        if value is None or isinstance(value, (bool, int, float, str)):
+            return value
+        if isinstance(value, type):
+            return f"{value.__module__}.{value.__name__}"
+        return str(value)
+
+    def _build_run_parameters(self, model_name, analysis_type, scoring):
+        """Photographie les paramètres exacts de l'entraînement qui vient d'avoir lieu"""
+        preprocessor = self.pipeline.named_steps['preprocessor']
+        model = self.pipeline.named_steps['model']
+
+        transformers = []
+        used_columns = []
+        for name, transformer, columns in preprocessor.transformers_:
+            if name == 'remainder':
+                continue
+            used_columns += list(columns)
+            transformers.append({
+                "nom": name,
+                "colonnes": list(columns),
+                "etapes": [
+                    {"classe": f"{type(step).__module__}.{type(step).__name__}",
+                     "parametres": step.get_params(deep=False)}
+                    for _, step in transformer.steps
+                ]
+            })
+        ignored_columns = [c for c in preprocessor.feature_names_in_ if c not in used_columns]
+
+        data_hash = hashlib.sha256(pd.util.hash_pandas_object(self.data, index=False).values).hexdigest()
+
+        params = {
+            "datapulse": "3.0",
+            "date": datetime.now().isoformat(timespec='seconds'),
+            "versions": {
+                "python": platform.python_version(),
+                "scikit-learn": sklearn.__version__,
+                "pandas": pd.__version__,
+                "numpy": np.__version__
+            },
+            "donnees": {
+                "fichier": self.source_file,
+                "lecture": self.read_options,
+                "noms_colonnes_nettoyes": self.columns_stripped,
+                "n_lignes": len(self.data),
+                "n_colonnes": self.data.shape[1],
+                "colonnes": self.column_names,
+                "empreinte": {
+                    "methode": "sha256(pandas.util.hash_pandas_object(df, index=False).values)",
+                    "valeur": data_hash
+                }
+            },
+            "cible": {
+                "colonne": self.target_column,
+                "type_analyse": analysis_type,
+                "classes_encodees": list(self.label_encoder.classes_) if self.label_encoder is not None else None
+            },
+            "decoupage": {
+                "fonction": "sklearn.model_selection.train_test_split",
+                "test_size": self.test_size,
+                "random_state": self.random_state,
+                "stratify": analysis_type == CLASSIFICATION,
+                "shuffle": True,
+                "n_train": len(self.X_train_raw),
+                "n_test": len(self.X_test_raw)
+            },
+            "pretraitement": {
+                "classe": "sklearn.compose.ColumnTransformer",
+                "ajuste_sur": "train uniquement",
+                "transformateurs": transformers,
+                "colonnes_ignorees": ignored_columns
+            },
+            "modele": {
+                "nom": model_name,
+                "classe": f"{type(model).__module__}.{type(model).__name__}",
+                "hyperparametres": model.get_params()
+            },
+            "validation_croisee": {
+                "fonction": "sklearn.model_selection.cross_val_score",
+                "donnees": "train uniquement",
+                "cv": 5,
+                "scoring": scoring
+            }
+        }
+        return self._to_jsonable(params)
+
+    def _build_run_predictions(self, y_pred, analysis_type):
+        """Photographie ligne par ligne des prédictions sur le jeu de test"""
+        predictions = {
+            "indices": self.X_test_raw.index.tolist(),
+            "y_vrai": np.asarray(self.y_test).tolist(),
+            "y_pred": np.asarray(y_pred).tolist(),
+            "classes": None,
+            "probabilites": None
+        }
+        if analysis_type == CLASSIFICATION and hasattr(self.pipeline, 'predict_proba'):
+            predictions["classes"] = self.current_model.classes_.tolist()
+            predictions["probabilites"] = self.pipeline.predict_proba(self.X_test_raw).tolist()
+        return self._to_jsonable(predictions)
+
+    def get_reference_json(self):
+        """Référence complète du dernier entraînement, pour le moteur de comparaison
+
+        Contient les paramètres, les métriques et, pour chaque ligne du jeu de test,
+        sa position dans le fichier (0 = première ligne de données), la vraie valeur,
+        la prédiction et les probabilités. None si aucun entraînement.
+        """
+        if self.run_parameters is None or self.run_metrics is None:
+            return None
+        reference = {
+            "format": "datapulse-reference",
+            "version_format": 1,
+            "tolerances_suggerees": {
+                "accuracy": 1e-6,
+                "matrice_confusion": 0,
+                "probabilites": 1e-4,
+                "regression": 1e-6
+            },
+            "parametres": self.run_parameters,
+            "metriques": self._to_jsonable(self.run_metrics),
+            "jeu_de_test": self.run_predictions
+        }
+        return json.dumps(reference, ensure_ascii=False)
+
+    def get_run_parameters_json(self):
+        """Paramètres exacts du dernier entraînement, au format JSON (None si aucun)"""
+        if self.run_parameters is None:
+            return None
+        return json.dumps(self.run_parameters, indent=2, ensure_ascii=False)
+
     def predict_single_sample(self, input_data):
         """Prédit sur un nouvel échantillon"""
-        if self.current_model is None or self.preprocessor is None:
+        # On s'appuie sur la photographie du dernier entraînement : une analyse
+        # non supervisée lancée ensuite remplace self.preprocessor et le type d'analyse.
+        if self.pipeline is None or self.run_parameters is None:
             return "❌ Modèle non entraîné.", None
+        analysis_type = self.run_parameters["cible"]["type_analyse"]
+        encoded_classes = self.run_parameters["cible"]["classes_encodees"]
             
         try:
             processed_input = {}
@@ -1298,45 +1528,35 @@ class DataProcessor:
                     except:
                         processed_input[feature] = value
             
-            X_test_raw = pd.DataFrame([processed_input])
-            original_features = self.preprocessor.feature_names_in_
-            
-            X_test_raw_filtered = pd.DataFrame(columns=original_features)
-            for col in original_features:
-                if col in processed_input:
-                    X_test_raw_filtered[col] = [processed_input[col]]
-                else:
-                    X_test_raw_filtered[col] = [np.nan]
-            
-            X_test_processed = self.preprocessor.transform(X_test_raw_filtered)
-            X_test_final = pd.DataFrame(X_test_processed, columns=self.preprocessor.get_feature_names_out())
+            original_features = self.pipeline.feature_names_in_
+            X_input = pd.DataFrame([{col: processed_input.get(col, np.nan) for col in original_features}])
 
-            prediction = self.current_model.predict(X_test_final)[0]
+            prediction = self.pipeline.predict(X_input)[0]
             
-            if self.current_model_type == CLASSIFICATION:
-                if self.label_encoder is not None:
-                    prediction_label = self.label_encoder.inverse_transform([prediction])[0]
-                elif hasattr(self.current_model, 'classes_'):
-                    prediction_label = self.current_model.classes_[prediction]
-                else:
-                    prediction_label = prediction
+            if analysis_type == CLASSIFICATION:
+                # Classes du modèle (encodées si la cible était du texte) -> étiquettes d'origine
+                def label(classe):
+                    return encoded_classes[int(classe)] if encoded_classes is not None else classe
+
+                prediction_label = label(prediction)
                 
-                if hasattr(self.current_model, 'predict_proba'):
-                    probas = self.current_model.predict_proba(X_test_final)[0]
-                    proba_str = ", ".join([f"Classe {i}: {p*100:.1f}%" for i, p in enumerate(probas)])
+                if hasattr(self.pipeline, 'predict_proba'):
+                    probas = self.pipeline.predict_proba(X_input)[0]
+                    proba_str = ", ".join(f"{label(c)}: {p*100:.1f}%"
+                                          for c, p in zip(self.pipeline.named_steps["model"].classes_, probas))
                     message = f"✅ Prédiction: **{prediction_label}**\nProbabilités: {proba_str}"
                 else:
                     message = f"✅ Prédiction: **{prediction_label}**"
                 
                 return message, prediction_label
             
-            elif self.current_model_type == REGRESSION:
+            elif analysis_type == REGRESSION:
                 return f"✅ Prédiction: **{prediction:.2f}**", prediction
             
             return "Prédiction non supportée.", None
 
         except Exception as e:
-            print(f"❌ Erreur prédiction: {e}")
+            _log(f"❌ Erreur prédiction: {e}")
             import traceback
             traceback.print_exc()
             return f"❌ Erreur lors de la prédiction: {e}", None
@@ -1368,31 +1588,31 @@ def create_sample_dataset(n_samples=1000, task='classification'):
 
 
 if __name__ == "__main__":
-    print("="*70)
-    print("  TEST DU MODULE DATA_PROCESSOR")
-    print("="*70)
+    _log("="*70)
+    _log("  TEST DU MODULE DATA_PROCESSOR")
+    _log("="*70)
     
     df = create_sample_dataset(500, 'classification')
     df.to_csv('test_data.csv', index=False)
-    print(f"✅ Dataset créé: {df.shape[0]} lignes, {df.shape[1]} colonnes")
+    _log(f"✅ Dataset créé: {df.shape[0]} lignes, {df.shape[1]} colonnes")
     
     processor = DataProcessor()
     
     if processor.load_data('test_data.csv'):
-        print("✅ Chargement réussi")
+        _log("✅ Chargement réussi")
     
     if processor.preprocess_data('Target', CLASSIFICATION):
-        print("✅ Prétraitement réussi")
+        _log("✅ Prétraitement réussi")
     
     result = processor.run_model("Random Forest", CLASSIFICATION)
     if result and len(result) > 0 and not isinstance(result[0], str):
-        print("✅ Entraînement réussi")
-        print("\nRapport:")
-        print(result[0][:200] + "...")
+        _log("✅ Entraînement réussi")
+        _log("\nRapport:")
+        _log(result[0][:200] + "...")
     
     import os
     os.remove('test_data.csv')
     
-    print("\n" + "="*70)
-    print("✅ TOUS LES TESTS SONT PASSÉS!")
-    print("="*70)
+    _log("\n" + "="*70)
+    _log("✅ TOUS LES TESTS SONT PASSÉS!")
+    _log("="*70)

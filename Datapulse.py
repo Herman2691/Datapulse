@@ -16,11 +16,14 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 import io
+import os
+import tempfile
 import base64
 from PIL import Image
 
 # Import du DataProcessor
 from data_processor import DataProcessor, CLASSIFICATION, REGRESSION, CLUSTERING, DIMENSION_REDUCTION, ACM_ANALYSIS, AFC_ANALYSIS
+from code_generator import generer_code
 
 # Configuration de la page
 st.set_page_config(
@@ -451,7 +454,7 @@ def main():
         st.markdown("### 📋 NAVIGATION")
         
         page = st.radio(
-            "",
+            "Navigation",
             ["🏠 Accueil", 
              "📂 Chargement & EDA", 
              "🎯 Modélisation Supervisée",
@@ -487,12 +490,14 @@ def main():
         st.markdown("---")
         st.markdown("### 🔧 ACTIONS RAPIDES")
         
-        if st.button("🔄 Nouveau Projet", use_container_width=True):
+        if st.button("🔄 Nouveau Projet", width="stretch"):
             if st.session_state.data_loaded:
                 st.session_state.processor = DataProcessor()
                 st.session_state.data_loaded = False
                 st.session_state.model_trained = False
                 st.session_state.analysis_history = []
+                st.session_state.pop('resultats_supervise', None)
+                st.session_state.pop('fichier_charge', None)
                 st.rerun()
     
     # Routage des pages
@@ -653,7 +658,7 @@ def page_accueil():
     # Bouton de démarrage
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        if st.button("🚀 COMMENCER L'ANALYSE", use_container_width=True, type="primary"):
+        if st.button("🚀 COMMENCER L'ANALYSE", width="stretch", type="primary"):
             st.rerun()
 
 def page_chargement_eda():
@@ -672,12 +677,21 @@ def page_chargement_eda():
     if uploaded_file is not None:
         try:
             file_extension = uploaded_file.name.split('.')[-1].lower()
-            temp_path = f"temp_{uploaded_file.name}"
-            with open(temp_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
+            # Copie dans un dossier temporaire, supprimé dès la lecture terminée
+            with tempfile.TemporaryDirectory() as dossier:
+                temp_path = os.path.join(dossier, uploaded_file.name)
+                with open(temp_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                chargement_ok = st.session_state.processor.load_data(temp_path, display_name=uploaded_file.name)
             
-            if st.session_state.processor.load_data(temp_path):
+            if chargement_ok:
                 st.session_state.data_loaded = True
+                
+                # Nouveau fichier : les résultats affichés ne le concernent plus
+                fichier_id = (uploaded_file.name, uploaded_file.size)
+                if st.session_state.get('fichier_charge') != fichier_id:
+                    st.session_state.fichier_charge = fichier_id
+                    st.session_state.pop('resultats_supervise', None)
                 
                 file_type = "Excel" if file_extension in ['xlsx', 'xls'] else "CSV"
                 st.success(f"✅ Fichier {file_type} chargé avec succès : {len(st.session_state.processor.data)} lignes, {len(st.session_state.processor.column_names)} colonnes")
@@ -685,7 +699,7 @@ def page_chargement_eda():
                 st.markdown("### 👀 Aperçu des Données")
                 st.dataframe(
                     st.session_state.processor.data.head(10),
-                    use_container_width=True,
+                    width="stretch",
                     height=300
                 )
                 
@@ -699,7 +713,7 @@ def page_chargement_eda():
                         'Manquantes': st.session_state.processor.data.isna().sum(),
                         'Uniques': st.session_state.processor.data.nunique()
                     })
-                    st.dataframe(types_df, use_container_width=True)
+                    st.dataframe(types_df, width="stretch")
                 
                 with col2:
                     st.markdown("### 📊 Répartition des Types")
@@ -716,7 +730,7 @@ def page_chargement_eda():
                         font=dict(color='#1F1F1F'),
                         title_font_size=16
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig)
             
             else:
                 st.error("❌ Erreur lors du chargement du fichier")
@@ -756,7 +770,7 @@ def page_chargement_eda():
                 plot_bgcolor='rgba(240, 244, 249, 0.8)',
                 font=dict(color='#1F1F1F')
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig)
         
         st.markdown("---")
         
@@ -765,7 +779,7 @@ def page_chargement_eda():
         eda_tabs = st.tabs(["📊 Statistiques", "🔗 Corrélation", "🔀 Analyse Bivariée"])
         
         with eda_tabs[0]:
-            if st.button("📊 Afficher les Statistiques", use_container_width=True):
+            if st.button("📊 Afficher les Statistiques", width="stretch"):
                 with st.spinner("Calcul en cours..."):
                     report, _ = st.session_state.processor.get_descriptive_stats()
                     st.text(report)
@@ -773,17 +787,17 @@ def page_chargement_eda():
                     numeric_cols = st.session_state.processor.data.select_dtypes(include=[np.number]).columns
                     if len(numeric_cols) > 0:
                         stats_df = st.session_state.processor.data[numeric_cols].describe().T
-                        st.dataframe(stats_df, use_container_width=True)
+                        st.dataframe(stats_df, width="stretch")
         
         with eda_tabs[1]:
-            if st.button("🔗 Générer la Matrice de Corrélation", use_container_width=True):
+            if st.button("🔗 Générer la Matrice de Corrélation", width="stretch"):
                 with st.spinner("Génération en cours..."):
                     report, img_base64 = st.session_state.processor.get_correlation_matrix()
                     
                     if img_base64:
                         img_data = base64.b64decode(img_base64)
                         img = Image.open(io.BytesIO(img_data))
-                        st.image(img, use_container_width=True)
+                        st.image(img, width="stretch")
                     
                     st.info(report)
         
@@ -796,7 +810,7 @@ def page_chargement_eda():
                 key="bivar_select"
             )
             
-            if st.button("▶ Lancer l'Analyse Bivariée", use_container_width=True):
+            if st.button("▶ Lancer l'Analyse Bivariée", width="stretch"):
                 if var_to_analyze and st.session_state.target_column:
                     with st.spinner("Analyse en cours..."):
                         report, img_base64 = st.session_state.processor.get_bivariate_analysis(
@@ -807,9 +821,92 @@ def page_chargement_eda():
                         if img_base64:
                             img_data = base64.b64decode(img_base64)
                             img = Image.open(io.BytesIO(img_data))
-                            st.image(img, use_container_width=True)
+                            st.image(img, width="stretch")
                         
                         st.info(report)
+
+def reglages_decoupage(key_prefix):
+    """Réglages du découpage train/test : proportion de test et graine aléatoire"""
+    with st.expander("⚙️ Réglages du découpage", expanded=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            test_pct = st.slider(
+                "Proportion du jeu de test (%)",
+                min_value=10, max_value=40, value=20, step=5,
+                help="Part des données mise de côté pour évaluer le modèle",
+                key=f"{key_prefix}_test_pct"
+            )
+        with col2:
+            random_state = st.number_input(
+                "Graine aléatoire",
+                min_value=0, max_value=9999, value=42, step=1,
+                help="Fixe le hasard du découpage et des modèles : même graine = mêmes résultats",
+                key=f"{key_prefix}_seed"
+            )
+    return test_pct / 100, int(random_state)
+
+def instantane_entrainement():
+    """Paramètres, référence et code du dernier entraînement, figés (None si aucun)"""
+    processor = st.session_state.processor
+    if processor.run_parameters is None:
+        return None
+    return {
+        'params': processor.run_parameters,
+        'params_json': processor.get_run_parameters_json(),
+        'reference_json': processor.get_reference_json(),
+        'code': generer_code(processor.run_parameters, processor.run_metrics)
+    }
+
+def afficher_export_parametres(key_prefix, instantane):
+    """Affiche et propose au téléchargement les paramètres exacts d'un entraînement"""
+    if instantane is None:
+        st.warning("⚠️ Aucun modèle entraîné")
+        return
+
+    params = instantane['params']
+    st.markdown("#### ⚙️ Paramètres Exacts de l'Analyse")
+    st.caption(
+        f"{params['modele']['nom']} • test={params['decoupage']['test_size']:.0%} • "
+        f"graine={params['decoupage']['random_state']} • scikit-learn {params['versions']['scikit-learn']}"
+    )
+    with st.expander("Voir le JSON"):
+        st.json(params)
+    st.download_button(
+        label="📥 Télécharger les paramètres (JSON)",
+        data=instantane['params_json'],
+        file_name=f"parametres_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+        mime="application/json",
+        width="stretch",
+        key=f"{key_prefix}_params_json"
+    )
+
+    if instantane['reference_json'] is not None:
+        st.download_button(
+            label="📥 Télécharger la référence pour comparaison (JSON)",
+            data=instantane['reference_json'],
+            file_name=f"reference_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+            mime="application/json",
+            help="Paramètres, métriques et prédictions ligne par ligne du jeu de test",
+            width="stretch",
+            key=f"{key_prefix}_reference_json"
+        )
+
+def afficher_code(key_prefix, instantane):
+    """« Montre-moi le code » : code scikit-learn qui reproduit exactement un entraînement"""
+    if instantane is None:
+        return
+    
+    with st.expander("💻 Montre-moi le code"):
+        st.caption("Ce code reproduit exactement l'analyse ci-dessus. Place-le à côté de ton fichier de données et exécute-le.")
+        st.code(instantane['code'], language="python")
+        st.download_button(
+            label="📥 Télécharger le code (.py)",
+            data=instantane['code'],
+            file_name=f"analyse_{datetime.now().strftime('%Y%m%d_%H%M%S')}.py",
+            mime="text/x-python",
+            width="stretch",
+            key=f"{key_prefix}_code_py"
+        )
 
 def page_supervise():
     """Page de modélisation supervisée"""
@@ -867,15 +964,19 @@ def page_supervise():
         
         if selected_model in model_info:
             st.info(f"ℹ️ {model_info[selected_model]}")
-    
+
+    test_size, random_state = reglages_decoupage("supervise")
+
     st.markdown("---")
-    
-    if st.button("🚀 ENTRAÎNER & ÉVALUER LE MODÈLE", use_container_width=True, type="primary"):
-        
+
+    if st.button("🚀 ENTRAÎNER & ÉVALUER LE MODÈLE", width="stretch", type="primary"):
+
         with st.spinner("⏳ Prétraitement des données..."):
             success = st.session_state.processor.preprocess_data(
                 target_column=st.session_state.target_column,
-                analysis_type=analysis_type
+                analysis_type=analysis_type,
+                test_size=test_size,
+                random_state=random_state
             )
         
         if not success:
@@ -893,38 +994,57 @@ def page_supervise():
         
         report_text, main_img, tree_img, curve_img = result if len(result) == 4 else (*result, None, None)
         
-        st.success(f"✅ Modèle {selected_model} entraîné avec succès!")
-        
         st.session_state.model_trained = True
         st.session_state.current_model_info = {
             'model': selected_model,
             'type': analysis_type,
             'target': st.session_state.target_column,
+            'test_size': test_size,
+            'random_state': random_state,
             'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         
         st.session_state.analysis_history.append(st.session_state.current_model_info.copy())
         
-        st.markdown("### 📊 Résultats de l'Évaluation")
-        st.text(report_text)
+        # Conservés en session : un clic (téléchargement, autre réglage) relance le script
+        # et les résultats doivent rester affichés
+        st.session_state.resultats_supervise = {
+            'model': selected_model,
+            'report': report_text,
+            'main_img': main_img,
+            'tree_img': tree_img,
+            'curve_img': curve_img,
+            'instantane': instantane_entrainement()
+        }
+        st.success(f"✅ Modèle {selected_model} entraîné avec succès!")
+    
+    resultats = st.session_state.get('resultats_supervise')
+    if resultats:
+        main_img, tree_img, curve_img = resultats['main_img'], resultats['tree_img'], resultats['curve_img']
+        
+        st.markdown(f"### 📊 Résultats de l'Évaluation : {resultats['model']}")
+        st.text(resultats['report'])
         
         if main_img:
             st.markdown("#### 📈 Visualisation Principale")
             img_data = base64.b64decode(main_img)
             img = Image.open(io.BytesIO(img_data))
-            st.image(img, use_container_width=True)
+            st.image(img, width="stretch")
         
         if tree_img:
             st.markdown("#### 🌳 Arbre de Décision")
             img_data = base64.b64decode(tree_img)
             img = Image.open(io.BytesIO(img_data))
-            st.image(img, use_container_width=True)
+            st.image(img, width="stretch")
         
         if curve_img:
             st.markdown("#### 📊 Courbe d'Apprentissage")
             img_data = base64.b64decode(curve_img)
             img = Image.open(io.BytesIO(img_data))
-            st.image(img, use_container_width=True)
+            st.image(img, width="stretch")
+
+        afficher_code("supervise", resultats['instantane'])
+        afficher_export_parametres("supervise", resultats['instantane'])
 
 def page_non_supervise():
     """Page d'analyse non-supervisée"""
@@ -956,7 +1076,7 @@ def page_non_supervise():
                 value=3
             )
         
-        if st.button("▶ LANCER LE CLUSTERING", use_container_width=True):
+        if st.button("▶ LANCER LE CLUSTERING", width="stretch"):
             with st.spinner("Analyse en cours..."):
                 st.session_state.processor.preprocess_data(target_column=None, analysis_type=CLUSTERING)
                 
@@ -968,13 +1088,13 @@ def page_non_supervise():
                 if main_img:
                     img_data = base64.b64decode(main_img)
                     img = Image.open(io.BytesIO(img_data))
-                    st.image(img, use_container_width=True)
+                    st.image(img, width="stretch")
                 
                 if secondary_img:
                     st.markdown("#### Méthode du Coude")
                     img_data = base64.b64decode(secondary_img)
                     img = Image.open(io.BytesIO(img_data))
-                    st.image(img, use_container_width=True)
+                    st.image(img, width="stretch")
     
     with tabs[1]:
         st.markdown("### Analyse en Composantes Principales")
@@ -986,7 +1106,7 @@ def page_non_supervise():
             value=2
         )
         
-        if st.button("▶ LANCER L'ACP", use_container_width=True):
+        if st.button("▶ LANCER L'ACP", width="stretch"):
             with st.spinner("Analyse en cours..."):
                 st.session_state.processor.preprocess_data(target_column=None, analysis_type=DIMENSION_REDUCTION)
                 
@@ -999,13 +1119,13 @@ def page_non_supervise():
                     st.markdown("#### Scree Plot")
                     img_data = base64.b64decode(scree_img)
                     img = Image.open(io.BytesIO(img_data))
-                    st.image(img, use_container_width=True)
+                    st.image(img, width="stretch")
                 
                 if scatter_img:
                     st.markdown("#### Projection 2D")
                     img_data = base64.b64decode(scatter_img)
                     img = Image.open(io.BytesIO(img_data))
-                    st.image(img, use_container_width=True)
+                    st.image(img, width="stretch")
 
 def page_acm_afc():
     """Page ACM et AFC"""
@@ -1035,7 +1155,7 @@ def page_acm_afc():
             
             n_components_acm = st.number_input("Nombre de dimensions", min_value=2, max_value=10, value=5, key="acm_comp")
             
-            if st.button("▶ LANCER L'ACM", use_container_width=True):
+            if st.button("▶ LANCER L'ACM", width="stretch"):
                 if len(selected_cols) < 2:
                     st.error("❌ Sélectionnez au moins 2 variables")
                 else:
@@ -1049,12 +1169,12 @@ def page_acm_afc():
                         if scree_img:
                             img_data = base64.b64decode(scree_img)
                             img = Image.open(io.BytesIO(img_data))
-                            st.image(img, use_container_width=True)
+                            st.image(img, width="stretch")
                         
                         if projection_img:
                             img_data = base64.b64decode(projection_img)
                             img = Image.open(io.BytesIO(img_data))
-                            st.image(img, use_container_width=True)
+                            st.image(img, width="stretch")
     
     with tabs[1]:
         st.markdown("### AFC - Analyse Factorielle des Correspondances")
@@ -1073,7 +1193,7 @@ def page_acm_afc():
             with col2:
                 col_variable = st.selectbox("Variable COLONNES", options=[col for col in categorical_cols if col != row_variable], key="afc_col")
             
-            if st.button("▶ LANCER L'AFC", use_container_width=True):
+            if st.button("▶ LANCER L'AFC", width="stretch"):
                 with st.spinner("Analyse AFC..."):
                     st.session_state.processor.preprocess_data(target_column=None, analysis_type=AFC_ANALYSIS)
                     report, contingency_img, projection_img = st.session_state.processor.run_afc(row_variable, col_variable)
@@ -1084,12 +1204,12 @@ def page_acm_afc():
                     if contingency_img:
                         img_data = base64.b64decode(contingency_img)
                         img = Image.open(io.BytesIO(img_data))
-                        st.image(img, use_container_width=True)
+                        st.image(img, width="stretch")
                     
                     if projection_img:
                         img_data = base64.b64decode(projection_img)
                         img = Image.open(io.BytesIO(img_data))
-                        st.image(img, use_container_width=True)
+                        st.image(img, width="stretch")
 
 def page_test_modele():
     """Page de test du modèle"""
@@ -1124,8 +1244,14 @@ def page_test_modele():
         
         with col:
             dtype = st.session_state.processor.data[feature].dtype
-            
-            if pd.api.types.is_numeric_dtype(dtype):
+
+            if pd.api.types.is_bool_dtype(dtype):
+                input_values[feature] = st.checkbox(
+                    feature,
+                    value=bool(st.session_state.processor.data[feature].mode()[0]),
+                    key=f"input_{feature}"
+                )
+            elif pd.api.types.is_numeric_dtype(dtype):
                 input_values[feature] = st.number_input(
                     feature,
                     value=float(st.session_state.processor.data[feature].mean()),
@@ -1141,7 +1267,7 @@ def page_test_modele():
     
     st.markdown("---")
     
-    if st.button("🎯 LANCER LA PRÉDICTION", use_container_width=True, type="primary"):
+    if st.button("🎯 LANCER LA PRÉDICTION", width="stretch", type="primary"):
         with st.spinner("Calcul en cours..."):
             result_msg, prediction = st.session_state.processor.predict_single_sample(input_values)
             
@@ -1190,19 +1316,27 @@ def page_comparaison():
     if len(selected_models) < 2:
         st.warning("⚠️ Sélectionnez au moins 2 modèles")
         return
-    
-    if st.button("▶ LANCER LA COMPARAISON", use_container_width=True, type="primary"):
+
+    test_size, random_state = reglages_decoupage("comparaison")
+
+    if st.button("▶ LANCER LA COMPARAISON", width="stretch", type="primary"):
         if 'target_column' not in st.session_state:
             st.error("❌ Définissez une variable cible")
             return
-        
+
         results = []
-        
+
         with st.spinner("Prétraitement..."):
-            st.session_state.processor.preprocess_data(
+            success = st.session_state.processor.preprocess_data(
                 target_column=st.session_state.target_column,
-                analysis_type=analysis_type
+                analysis_type=analysis_type,
+                test_size=test_size,
+                random_state=random_state
             )
+
+        if not success:
+            st.error("❌ Échec du prétraitement")
+            return
         
         progress_bar = st.progress(0)
         
@@ -1235,7 +1369,7 @@ def page_comparaison():
         
         with col1:
             st.markdown("### 📊 Tableau Comparatif")
-            st.dataframe(results_df, use_container_width=True)
+            st.dataframe(results_df, width="stretch")
             
             best_idx = results_df[metric_name].idxmax()
             best_model = results_df.loc[best_idx, 'Modèle']
@@ -1259,7 +1393,7 @@ def page_comparaison():
                 plot_bgcolor='rgba(240, 244, 249, 0.8)',
                 font=dict(color='#1F1F1F')
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig)
 
 def page_historique():
     """Page historique"""
@@ -1299,7 +1433,7 @@ def page_historique():
         
         fig = px.pie(values=model_counts.values, names=model_counts.index, title="Modèles Utilisés", color_discrete_sequence=['#6B5CE7', '#8B7EF5', '#A59BF9', '#10B981', '#F59E0B'])
         fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', font=dict(color='#1F1F1F'))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig)
     
     with col2:
         types_used = [a['type'] for a in st.session_state.analysis_history]
@@ -1307,7 +1441,7 @@ def page_historique():
         
         fig = px.bar(x=type_counts.index, y=type_counts.values, title="Types d'Analyses", color=type_counts.values, color_continuous_scale=['#6B5CE7', '#8B7EF5', '#A59BF9'])
         fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(240, 244, 249, 0.8)', font=dict(color='#1F1F1F'))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig)
 
 def page_export():
     """Page export"""
@@ -1322,19 +1456,19 @@ def page_export():
     
     with export_tabs[0]:
         st.markdown("### Export CSV")
-        if st.button("⬇️ Télécharger CSV", use_container_width=True):
+        if st.button("⬇️ Télécharger CSV", width="stretch"):
             csv = st.session_state.processor.data.to_csv(index=False)
             st.download_button(
                 label="📥 TÉLÉCHARGER CSV",
                 data=csv,
                 file_name=f"appanaly_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                 mime="text/csv",
-                use_container_width=True
+                width="stretch"
             )
     
     with export_tabs[1]:
         st.markdown("### Export Excel")
-        if st.button("⬇️ Télécharger Excel", use_container_width=True):
+        if st.button("⬇️ Télécharger Excel", width="stretch"):
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 st.session_state.processor.data.to_excel(writer, index=False, sheet_name='Données')
@@ -1344,13 +1478,13 @@ def page_export():
                 data=excel_data,
                 file_name=f"appanaly_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
+                width="stretch"
             )
     
     with export_tabs[2]:
         st.markdown("### Export JSON")
         if st.session_state.analysis_history:
-            if st.button("⬇️ Télécharger Historique", use_container_width=True):
+            if st.button("⬇️ Télécharger Historique", width="stretch"):
                 import json
                 json_data = json.dumps(st.session_state.analysis_history, indent=2)
                 st.download_button(
@@ -1358,28 +1492,18 @@ def page_export():
                     data=json_data,
                     file_name=f"history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                     mime="application/json",
-                    use_container_width=True
+                    width="stretch"
                 )
         else:
             st.info("ℹ️ Aucun historique")
     
     with export_tabs[3]:
         st.markdown("### Sauvegarde Modèle")
-        if st.session_state.model_trained:
-            st.info("🚧 Fonctionnalité en développement")
-            st.markdown("""
-            <div class='pro-card'>
-                <p>Cette fonctionnalité permettra :</p>
-                <p>
-                    • Sauvegarde du modèle (pickle)<br>
-                    • Export des paramètres<br>
-                    • Pipeline réutilisable<br>
-                    • Partage avec l'équipe
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.warning("⚠️ Aucun modèle entraîné")
+        instantane = instantane_entrainement()
+        afficher_code("export", instantane)
+        afficher_export_parametres("export", instantane)
+        if instantane is not None:
+            st.info("🚧 Sauvegarde du modèle (pickle) en développement")
 
 if __name__ == "__main__":
     main()
