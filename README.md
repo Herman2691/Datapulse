@@ -305,6 +305,7 @@ Datapulse/
 ├── data_processor.py         # Module de traitement ML
 ├── code_generator.py         # Génération du code scikit-learn équivalent
 ├── comparateur.py            # Comparaison d'un résultat étudiant avec la référence
+├── plateforme/               # Prototype de la plateforme d'apprentissage (module 1, JupyterLite)
 ├── requirements.txt          # Dépendances Python
 └── README.md                 # Documentation
 ```
@@ -347,6 +348,11 @@ Puis, dans DATAPULSE (page **🎓 Comparer mon code**) ou en ligne de commande :
 ```bash
 python comparateur.py reference.json mes_resultats.json
 ```
+
+#### `plateforme/`
+Prototype du module 1 de la plateforme d'apprentissage : deux notebooks (leçon, quiz, code à trous avec indices, défi, comparaison avec DATAPULSE, bilan) qui s'exécutent dans le navigateur avec JupyterLite. Voir [plateforme/README.md](plateforme/README.md).
+
+▶️ [Ouvrir le module 1 en ligne](https://herman2691.github.io/Datapulse/lab/index.html?path=module1_premiere_classification.ipynb)
 
 ---
 
