@@ -5,7 +5,7 @@
 ![Version](https://img.shields.io/badge/version-3.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
-![Streamlit](https://img.shields.io/badge/streamlit-1.28+-red.svg)
+![Streamlit](https://img.shields.io/badge/streamlit-1.49+-red.svg)
 
 **Plateforme Professionnelle d'Analyse ML & Data Science**
 
@@ -219,7 +219,7 @@ pip install -r requirements.txt
 ### Fichier requirements.txt
 
 ```txt
-streamlit>=1.28.0
+streamlit>=1.49.0
 pandas>=2.0.0
 numpy>=1.24.0
 openpyxl>=3.1.0

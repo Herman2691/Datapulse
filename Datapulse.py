@@ -487,7 +487,7 @@ def main():
         st.markdown("---")
         st.markdown("### 🔧 ACTIONS RAPIDES")
         
-        if st.button("🔄 Nouveau Projet", use_container_width=True):
+        if st.button("🔄 Nouveau Projet", width="stretch"):
             if st.session_state.data_loaded:
                 st.session_state.processor = DataProcessor()
                 st.session_state.data_loaded = False
@@ -655,7 +655,7 @@ def page_accueil():
     # Bouton de démarrage
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        if st.button("🚀 COMMENCER L'ANALYSE", use_container_width=True, type="primary"):
+        if st.button("🚀 COMMENCER L'ANALYSE", width="stretch", type="primary"):
             st.rerun()
 
 def page_chargement_eda():
@@ -696,7 +696,7 @@ def page_chargement_eda():
                 st.markdown("### 👀 Aperçu des Données")
                 st.dataframe(
                     st.session_state.processor.data.head(10),
-                    use_container_width=True,
+                    width="stretch",
                     height=300
                 )
                 
@@ -710,7 +710,7 @@ def page_chargement_eda():
                         'Manquantes': st.session_state.processor.data.isna().sum(),
                         'Uniques': st.session_state.processor.data.nunique()
                     })
-                    st.dataframe(types_df, use_container_width=True)
+                    st.dataframe(types_df, width="stretch")
                 
                 with col2:
                     st.markdown("### 📊 Répartition des Types")
@@ -727,7 +727,7 @@ def page_chargement_eda():
                         font=dict(color='#f1f5f9'),
                         title_font_size=16
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig)
             
             else:
                 st.error("❌ Erreur lors du chargement du fichier")
@@ -767,7 +767,7 @@ def page_chargement_eda():
                 plot_bgcolor='rgba(30,41,59,0.5)',
                 font=dict(color='#f1f5f9')
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig)
         
         st.markdown("---")
         
@@ -776,7 +776,7 @@ def page_chargement_eda():
         eda_tabs = st.tabs(["📊 Statistiques", "🔗 Corrélation", "🔀 Analyse Bivariée"])
         
         with eda_tabs[0]:
-            if st.button("📊 Afficher les Statistiques", use_container_width=True):
+            if st.button("📊 Afficher les Statistiques", width="stretch"):
                 with st.spinner("Calcul en cours..."):
                     report, _ = st.session_state.processor.get_descriptive_stats()
                     st.text(report)
@@ -784,17 +784,17 @@ def page_chargement_eda():
                     numeric_cols = st.session_state.processor.data.select_dtypes(include=[np.number]).columns
                     if len(numeric_cols) > 0:
                         stats_df = st.session_state.processor.data[numeric_cols].describe().T
-                        st.dataframe(stats_df, use_container_width=True)
+                        st.dataframe(stats_df, width="stretch")
         
         with eda_tabs[1]:
-            if st.button("🔗 Générer la Matrice de Corrélation", use_container_width=True):
+            if st.button("🔗 Générer la Matrice de Corrélation", width="stretch"):
                 with st.spinner("Génération en cours..."):
                     report, img_base64 = st.session_state.processor.get_correlation_matrix()
                     
                     if img_base64:
                         img_data = base64.b64decode(img_base64)
                         img = Image.open(io.BytesIO(img_data))
-                        st.image(img, use_container_width=True)
+                        st.image(img, width="stretch")
                     
                     st.info(report)
         
@@ -807,7 +807,7 @@ def page_chargement_eda():
                 key="bivar_select"
             )
             
-            if st.button("▶ Lancer l'Analyse Bivariée", use_container_width=True):
+            if st.button("▶ Lancer l'Analyse Bivariée", width="stretch"):
                 if var_to_analyze and st.session_state.target_column:
                     with st.spinner("Analyse en cours..."):
                         report, img_base64 = st.session_state.processor.get_bivariate_analysis(
@@ -818,7 +818,7 @@ def page_chargement_eda():
                         if img_base64:
                             img_data = base64.b64decode(img_base64)
                             img = Image.open(io.BytesIO(img_data))
-                            st.image(img, use_container_width=True)
+                            st.image(img, width="stretch")
                         
                         st.info(report)
 
@@ -873,7 +873,7 @@ def afficher_export_parametres(key_prefix, instantane):
         data=instantane['params_json'],
         file_name=f"parametres_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
         mime="application/json",
-        use_container_width=True,
+        width="stretch",
         key=f"{key_prefix}_params_json"
     )
 
@@ -884,7 +884,7 @@ def afficher_export_parametres(key_prefix, instantane):
             file_name=f"reference_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
             mime="application/json",
             help="Paramètres, métriques et prédictions ligne par ligne du jeu de test",
-            use_container_width=True,
+            width="stretch",
             key=f"{key_prefix}_reference_json"
         )
 
@@ -901,7 +901,7 @@ def afficher_code(key_prefix, instantane):
             data=instantane['code'],
             file_name=f"analyse_{datetime.now().strftime('%Y%m%d_%H%M%S')}.py",
             mime="text/x-python",
-            use_container_width=True,
+            width="stretch",
             key=f"{key_prefix}_code_py"
         )
 
@@ -966,7 +966,7 @@ def page_supervise():
 
     st.markdown("---")
 
-    if st.button("🚀 ENTRAÎNER & ÉVALUER LE MODÈLE", use_container_width=True, type="primary"):
+    if st.button("🚀 ENTRAÎNER & ÉVALUER LE MODÈLE", width="stretch", type="primary"):
 
         with st.spinner("⏳ Prétraitement des données..."):
             success = st.session_state.processor.preprocess_data(
@@ -1026,19 +1026,19 @@ def page_supervise():
             st.markdown("#### 📈 Visualisation Principale")
             img_data = base64.b64decode(main_img)
             img = Image.open(io.BytesIO(img_data))
-            st.image(img, use_container_width=True)
+            st.image(img, width="stretch")
         
         if tree_img:
             st.markdown("#### 🌳 Arbre de Décision")
             img_data = base64.b64decode(tree_img)
             img = Image.open(io.BytesIO(img_data))
-            st.image(img, use_container_width=True)
+            st.image(img, width="stretch")
         
         if curve_img:
             st.markdown("#### 📊 Courbe d'Apprentissage")
             img_data = base64.b64decode(curve_img)
             img = Image.open(io.BytesIO(img_data))
-            st.image(img, use_container_width=True)
+            st.image(img, width="stretch")
 
         afficher_code("supervise", resultats['instantane'])
         afficher_export_parametres("supervise", resultats['instantane'])
@@ -1073,7 +1073,7 @@ def page_non_supervise():
                 value=3
             )
         
-        if st.button("▶ LANCER LE CLUSTERING", use_container_width=True):
+        if st.button("▶ LANCER LE CLUSTERING", width="stretch"):
             with st.spinner("Analyse en cours..."):
                 st.session_state.processor.preprocess_data(target_column=None, analysis_type=CLUSTERING)
                 
@@ -1085,13 +1085,13 @@ def page_non_supervise():
                 if main_img:
                     img_data = base64.b64decode(main_img)
                     img = Image.open(io.BytesIO(img_data))
-                    st.image(img, use_container_width=True)
+                    st.image(img, width="stretch")
                 
                 if secondary_img:
                     st.markdown("#### Méthode du Coude")
                     img_data = base64.b64decode(secondary_img)
                     img = Image.open(io.BytesIO(img_data))
-                    st.image(img, use_container_width=True)
+                    st.image(img, width="stretch")
     
     with tabs[1]:
         st.markdown("### Analyse en Composantes Principales")
@@ -1103,7 +1103,7 @@ def page_non_supervise():
             value=2
         )
         
-        if st.button("▶ LANCER L'ACP", use_container_width=True):
+        if st.button("▶ LANCER L'ACP", width="stretch"):
             with st.spinner("Analyse en cours..."):
                 st.session_state.processor.preprocess_data(target_column=None, analysis_type=DIMENSION_REDUCTION)
                 
@@ -1116,13 +1116,13 @@ def page_non_supervise():
                     st.markdown("#### Scree Plot")
                     img_data = base64.b64decode(scree_img)
                     img = Image.open(io.BytesIO(img_data))
-                    st.image(img, use_container_width=True)
+                    st.image(img, width="stretch")
                 
                 if scatter_img:
                     st.markdown("#### Projection 2D")
                     img_data = base64.b64decode(scatter_img)
                     img = Image.open(io.BytesIO(img_data))
-                    st.image(img, use_container_width=True)
+                    st.image(img, width="stretch")
 
 def page_acm_afc():
     """Page ACM et AFC"""
@@ -1152,7 +1152,7 @@ def page_acm_afc():
             
             n_components_acm = st.number_input("Nombre de dimensions", min_value=2, max_value=10, value=5, key="acm_comp")
             
-            if st.button("▶ LANCER L'ACM", use_container_width=True):
+            if st.button("▶ LANCER L'ACM", width="stretch"):
                 if len(selected_cols) < 2:
                     st.error("❌ Sélectionnez au moins 2 variables")
                 else:
@@ -1166,12 +1166,12 @@ def page_acm_afc():
                         if scree_img:
                             img_data = base64.b64decode(scree_img)
                             img = Image.open(io.BytesIO(img_data))
-                            st.image(img, use_container_width=True)
+                            st.image(img, width="stretch")
                         
                         if projection_img:
                             img_data = base64.b64decode(projection_img)
                             img = Image.open(io.BytesIO(img_data))
-                            st.image(img, use_container_width=True)
+                            st.image(img, width="stretch")
     
     with tabs[1]:
         st.markdown("### AFC - Analyse Factorielle des Correspondances")
@@ -1190,7 +1190,7 @@ def page_acm_afc():
             with col2:
                 col_variable = st.selectbox("Variable COLONNES", options=[col for col in categorical_cols if col != row_variable], key="afc_col")
             
-            if st.button("▶ LANCER L'AFC", use_container_width=True):
+            if st.button("▶ LANCER L'AFC", width="stretch"):
                 with st.spinner("Analyse AFC..."):
                     st.session_state.processor.preprocess_data(target_column=None, analysis_type=AFC_ANALYSIS)
                     report, contingency_img, projection_img = st.session_state.processor.run_afc(row_variable, col_variable)
@@ -1201,12 +1201,12 @@ def page_acm_afc():
                     if contingency_img:
                         img_data = base64.b64decode(contingency_img)
                         img = Image.open(io.BytesIO(img_data))
-                        st.image(img, use_container_width=True)
+                        st.image(img, width="stretch")
                     
                     if projection_img:
                         img_data = base64.b64decode(projection_img)
                         img = Image.open(io.BytesIO(img_data))
-                        st.image(img, use_container_width=True)
+                        st.image(img, width="stretch")
 
 def page_test_modele():
     """Page de test du modèle"""
@@ -1264,7 +1264,7 @@ def page_test_modele():
     
     st.markdown("---")
     
-    if st.button("🎯 LANCER LA PRÉDICTION", use_container_width=True, type="primary"):
+    if st.button("🎯 LANCER LA PRÉDICTION", width="stretch", type="primary"):
         with st.spinner("Calcul en cours..."):
             result_msg, prediction = st.session_state.processor.predict_single_sample(input_values)
             
@@ -1316,7 +1316,7 @@ def page_comparaison():
 
     test_size, random_state = reglages_decoupage("comparaison")
 
-    if st.button("▶ LANCER LA COMPARAISON", use_container_width=True, type="primary"):
+    if st.button("▶ LANCER LA COMPARAISON", width="stretch", type="primary"):
         if 'target_column' not in st.session_state:
             st.error("❌ Définissez une variable cible")
             return
@@ -1366,7 +1366,7 @@ def page_comparaison():
         
         with col1:
             st.markdown("### 📊 Tableau Comparatif")
-            st.dataframe(results_df, use_container_width=True)
+            st.dataframe(results_df, width="stretch")
             
             best_idx = results_df[metric_name].idxmax()
             best_model = results_df.loc[best_idx, 'Modèle']
@@ -1390,7 +1390,7 @@ def page_comparaison():
                 plot_bgcolor='rgba(30,41,59,0.5)',
                 font=dict(color='#f1f5f9')
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig)
 
 def page_historique():
     """Page historique"""
@@ -1430,7 +1430,7 @@ def page_historique():
         
         fig = px.pie(values=model_counts.values, names=model_counts.index, title="Modèles Utilisés", color_discrete_sequence=px.colors.sequential.Plasma)
         fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', font=dict(color='#f1f5f9'))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig)
     
     with col2:
         types_used = [a['type'] for a in st.session_state.analysis_history]
@@ -1438,7 +1438,7 @@ def page_historique():
         
         fig = px.bar(x=type_counts.index, y=type_counts.values, title="Types d'Analyses", color=type_counts.values, color_continuous_scale='Viridis')
         fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(30,41,59,0.5)', font=dict(color='#f1f5f9'))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig)
 
 def page_export():
     """Page export"""
@@ -1453,19 +1453,19 @@ def page_export():
     
     with export_tabs[0]:
         st.markdown("### Export CSV")
-        if st.button("⬇️ Télécharger CSV", use_container_width=True):
+        if st.button("⬇️ Télécharger CSV", width="stretch"):
             csv = st.session_state.processor.data.to_csv(index=False)
             st.download_button(
                 label="📥 TÉLÉCHARGER CSV",
                 data=csv,
                 file_name=f"appanaly_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                 mime="text/csv",
-                use_container_width=True
+                width="stretch"
             )
     
     with export_tabs[1]:
         st.markdown("### Export Excel")
-        if st.button("⬇️ Télécharger Excel", use_container_width=True):
+        if st.button("⬇️ Télécharger Excel", width="stretch"):
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 st.session_state.processor.data.to_excel(writer, index=False, sheet_name='Données')
@@ -1475,13 +1475,13 @@ def page_export():
                 data=excel_data,
                 file_name=f"appanaly_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
+                width="stretch"
             )
     
     with export_tabs[2]:
         st.markdown("### Export JSON")
         if st.session_state.analysis_history:
-            if st.button("⬇️ Télécharger Historique", use_container_width=True):
+            if st.button("⬇️ Télécharger Historique", width="stretch"):
                 import json
                 json_data = json.dumps(st.session_state.analysis_history, indent=2)
                 st.download_button(
@@ -1489,7 +1489,7 @@ def page_export():
                     data=json_data,
                     file_name=f"history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                     mime="application/json",
-                    use_container_width=True
+                    width="stretch"
                 )
         else:
             st.info("ℹ️ Aucun historique")
