@@ -8,6 +8,7 @@ Date: 2025
 
 import pandas as pd
 import numpy as np
+from sklearn.base import clone
 from sklearn.model_selection import train_test_split, learning_curve, cross_val_score
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
 from sklearn.impute import SimpleImputer
@@ -77,8 +78,11 @@ class DataProcessor:
         self.X_test = None
         self.y_train = None
         self.y_test = None
+        self.X_train_raw = None
+        self.X_test_raw = None
         self.X_full_processed = None
         self.preprocessor = None
+        self.pipeline = None
         self.current_model = None
         self.current_model_type = None
         self.current_model_name = None
@@ -242,19 +246,19 @@ class DataProcessor:
                     else:
                         self.label_encoder = None
 
-                self.preprocessor = self._create_preprocessor(X_raw)
-                self.preprocessor.fit(X_raw)
-                
-                X_processed = self.preprocessor.transform(X_raw)
-                feature_names = self.preprocessor.get_feature_names_out()
-                X = pd.DataFrame(X_processed, columns=feature_names)
-
+                # Découpage AVANT tout ajustement : l'imputation et la normalisation
+                # seront apprises sur le train uniquement (dans run_model), sans fuite.
                 stratify = self.y if analysis_type == CLASSIFICATION else None
-                self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-                    X, self.y, test_size=0.2, random_state=42, stratify=stratify
+                self.X_train_raw, self.X_test_raw, self.y_train, self.y_test = train_test_split(
+                    X_raw, self.y, test_size=0.2, random_state=42, stratify=stratify
                 )
-                
-                print(f"✅ Prétraitement: Train={len(self.X_train)}, Test={len(self.X_test)}")
+
+                # Prétraitement non ajusté, cloné et ajusté à chaque entraînement
+                self.preprocessor = self._create_preprocessor(X_raw)
+                self.pipeline = None
+                self.X_train = self.X_test = None
+
+                print(f"✅ Prétraitement: Train={len(self.X_train_raw)}, Test={len(self.X_test_raw)}")
                 return True
 
             elif analysis_type in [CLUSTERING, DIMENSION_REDUCTION, ACM_ANALYSIS, AFC_ANALYSIS]:
@@ -453,7 +457,7 @@ class DataProcessor:
 
     def run_model(self, model_name, analysis_type):
         """Entraîne et évalue un modèle avec visualisations complètes"""
-        if self.X_train is None or self.y_train is None:
+        if self.X_train_raw is None or self.y_train is None:
             return "❌ Données d'entraînement non préparées.", None, None, None
 
         if analysis_type == CLASSIFICATION:
@@ -469,11 +473,24 @@ class DataProcessor:
             return "Modèle inconnu.", None, None, None
 
         self.current_model_name = model_name
-        self.current_model = models[model_name]
-        
+
+        # Pipeline prétraitement + modèle : ajusté sur le train uniquement,
+        # et réajusté dans chaque pli de validation croisée.
+        self.pipeline = Pipeline([
+            ('preprocessor', clone(self.preprocessor)),
+            ('model', clone(models[model_name]))
+        ])
+
         print(f"🔧 Entraînement de {model_name}...")
-        self.current_model.fit(self.X_train, self.y_train)
-        y_pred = self.current_model.predict(self.X_test)
+        self.pipeline.fit(self.X_train_raw, self.y_train)
+        y_pred = self.pipeline.predict(self.X_test_raw)
+
+        # Étapes ajustées, utilisées par la visualisation et la prédiction unitaire
+        self.preprocessor = self.pipeline.named_steps['preprocessor']
+        self.current_model = self.pipeline.named_steps['model']
+        feature_names = self.preprocessor.get_feature_names_out()
+        self.X_train = pd.DataFrame(self.preprocessor.transform(self.X_train_raw), columns=feature_names)
+        self.X_test = pd.DataFrame(self.preprocessor.transform(self.X_test_raw), columns=feature_names)
         
         report = f"🎯 **RAPPORT: {model_name}**\n\n"
         report += f"**Type:** {analysis_type}\n"
@@ -491,7 +508,7 @@ class DataProcessor:
             report += f"**Précision Globale:** {accuracy:.4f} ({accuracy*100:.2f}%)\n\n"
             
             # Validation croisée
-            cv_scores = cross_val_score(self.current_model, self.X_train, self.y_train, 
+            cv_scores = cross_val_score(self.pipeline, self.X_train_raw, self.y_train,
                                        cv=5, scoring='accuracy')
             report += f"**Validation Croisée (5-fold):**\n"
             report += f"   Moyenne: {cv_scores.mean():.4f} (±{cv_scores.std()*2:.4f})\n\n"
@@ -534,7 +551,7 @@ class DataProcessor:
             r2 = r2_score(self.y_test, y_pred)
             
             # Validation croisée
-            cv_scores = cross_val_score(self.current_model, self.X_train, self.y_train,
+            cv_scores = cross_val_score(self.pipeline, self.X_train_raw, self.y_train,
                                        cv=5, scoring='r2')
             
             report += f"**Métriques d'Erreur:**\n"
@@ -631,13 +648,13 @@ class DataProcessor:
         # COURBE D'APPRENTISSAGE
         try:
             print("📊 Génération courbe d'apprentissage...")
-            X_combined = pd.concat([self.X_train, self.X_test])
+            X_combined = pd.concat([self.X_train_raw, self.X_test_raw])
             y_combined = np.concatenate([self.y_train, self.y_test])
-            
+
             train_sizes = np.linspace(0.1, 1.0, 10)
-            
+
             train_sizes_abs, train_scores, val_scores = learning_curve(
-                self.current_model,
+                self.pipeline,
                 X_combined,
                 y_combined,
                 train_sizes=train_sizes,
