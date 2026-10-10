@@ -210,8 +210,18 @@ class DataProcessor:
                 self.data = pd.read_excel(file_path, engine=self.read_options["engine"])
                 _log(f"✅ Fichier Excel chargé avec succès")
             else:
-                self.read_options = {"fonction": "pandas.read_csv", "sep": None, "engine": 'python', "encoding": 'utf-8'}
-                self.data = pd.read_csv(file_path, sep=None, engine='python', encoding='utf-8')
+                # utf-8-sig : UTF-8, avec ou sans la marque BOM qu'ajoute Excel (« CSV UTF-8 »)
+                # cp1252 : CSV enregistré par Excel sous Windows (accents, €)
+                # latin-1 : dernier recours, il accepte n'importe quel octet
+                for encoding in ['utf-8-sig', 'cp1252', 'latin-1']:
+                    try:
+                        self.data = pd.read_csv(file_path, sep=None, engine='python', encoding=encoding)
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                self.read_options = {"fonction": "pandas.read_csv", "sep": None, "engine": 'python', "encoding": encoding}
+                if encoding != 'utf-8-sig':
+                    _log(f"ℹ️ Fichier CSV lu avec l'encodage {encoding}")
             
             if self.data.empty:
                 _log("❌ Erreur: Le fichier est vide")

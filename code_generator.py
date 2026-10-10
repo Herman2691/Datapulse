@@ -29,6 +29,14 @@ EXPLICATIONS = {
     ("OneHotEncoder", None): "transforme chaque catégorie en colonne 0/1",
 }
 
+# Explication de l'encodage du fichier CSV (voir DataProcessor.load_data)
+EXPLICATIONS_ENCODAGE = {
+    "utf-8-sig": "utf-8-sig : UTF-8, avec ou sans la marque ajoutée par Excel",
+    "utf-8": "encodage UTF-8",
+    "cp1252": "cp1252 : fichier enregistré par Excel sous Windows",
+    "latin-1": "latin-1 : ancien encodage d'Europe de l'Ouest",
+}
+
 
 def _import_public(chemin_classe):
     """Renvoie (module public, classe) : sklearn.linear_model._logistic.X -> sklearn.linear_model"""
@@ -157,8 +165,9 @@ def generer_code(params, metriques=None):
         moteur = f", engine={json.dumps(lecture['engine'])}" if lecture.get("engine") else ""
         ajout(f"df = pd.read_excel({fichier}{moteur})")
     else:
-        ajout(f"df = pd.read_csv({fichier}, sep=None, engine=\"python\", encoding=\"utf-8\")"
-              "  # sep=None : séparateur détecté automatiquement")
+        encodage = lecture.get("encoding", "utf-8")
+        ajout(f"# sep=None : séparateur détecté automatiquement ; {EXPLICATIONS_ENCODAGE.get(encodage, 'encodage du fichier')}")
+        ajout(f"df = pd.read_csv({fichier}, sep=None, engine=\"python\", encoding={json.dumps(encodage)})")
     if donnees.get("noms_colonnes_nettoyes"):
         ajout("df.columns = df.columns.str.strip()  # retire les espaces autour des noms de colonnes")
     ajout("")
