@@ -6,8 +6,12 @@ Auteur: Herman Kandolo
 Date: 2025
 """
 
+import hashlib
+import json
+import platform
 import pandas as pd
 import numpy as np
+import sklearn
 from sklearn.base import clone
 from sklearn.model_selection import train_test_split, learning_curve, cross_val_score
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
@@ -82,6 +86,7 @@ class DataProcessor:
         self.X_test_raw = None
         self.test_size = 0.2
         self.random_state = 42
+        self.run_parameters = None
         self.X_full_processed = None
         self.preprocessor = None
         self.pipeline = None
@@ -502,6 +507,7 @@ class DataProcessor:
         feature_names = self.preprocessor.get_feature_names_out()
         self.X_train = pd.DataFrame(self.preprocessor.transform(self.X_train_raw), columns=feature_names)
         self.X_test = pd.DataFrame(self.preprocessor.transform(self.X_test_raw), columns=feature_names)
+        self.run_parameters = self._build_run_parameters(model_name, analysis_type, scoring)
         
         report = f"🎯 **RAPPORT: {model_name}**\n\n"
         report += f"**Type:** {analysis_type}\n"
@@ -1310,6 +1316,105 @@ class DataProcessor:
             import traceback
             traceback.print_exc()
             return f"❌ Erreur lors de l'AFC: {e}", None, None
+
+    @staticmethod
+    def _to_jsonable(value):
+        """Convertit récursivement une valeur (paramètres sklearn, types numpy) en valeur JSON"""
+        if isinstance(value, dict):
+            return {str(k): DataProcessor._to_jsonable(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [DataProcessor._to_jsonable(v) for v in value]
+        if isinstance(value, np.generic):
+            value = value.item()
+        if isinstance(value, float) and np.isnan(value):
+            return "NaN"  # JSON standard n'a pas de NaN ; null signifierait None
+        if value is None or isinstance(value, (bool, int, float, str)):
+            return value
+        if isinstance(value, type):
+            return f"{value.__module__}.{value.__name__}"
+        return str(value)
+
+    def _build_run_parameters(self, model_name, analysis_type, scoring):
+        """Photographie les paramètres exacts de l'entraînement qui vient d'avoir lieu"""
+        preprocessor = self.pipeline.named_steps['preprocessor']
+        model = self.pipeline.named_steps['model']
+
+        transformers = []
+        used_columns = []
+        for name, transformer, columns in preprocessor.transformers_:
+            if name == 'remainder':
+                continue
+            used_columns += list(columns)
+            transformers.append({
+                "nom": name,
+                "colonnes": list(columns),
+                "etapes": [
+                    {"classe": f"{type(step).__module__}.{type(step).__name__}",
+                     "parametres": step.get_params(deep=False)}
+                    for _, step in transformer.steps
+                ]
+            })
+        ignored_columns = [c for c in preprocessor.feature_names_in_ if c not in used_columns]
+
+        data_hash = hashlib.sha256(pd.util.hash_pandas_object(self.data, index=False).values).hexdigest()
+
+        params = {
+            "datapulse": "3.0",
+            "date": datetime.now().isoformat(timespec='seconds'),
+            "versions": {
+                "python": platform.python_version(),
+                "scikit-learn": sklearn.__version__,
+                "pandas": pd.__version__,
+                "numpy": np.__version__
+            },
+            "donnees": {
+                "n_lignes": len(self.data),
+                "n_colonnes": self.data.shape[1],
+                "colonnes": self.column_names,
+                "empreinte": {
+                    "methode": "sha256(pandas.util.hash_pandas_object(df, index=False).values)",
+                    "valeur": data_hash
+                }
+            },
+            "cible": {
+                "colonne": self.target_column,
+                "type_analyse": analysis_type,
+                "classes_encodees": list(self.label_encoder.classes_) if self.label_encoder is not None else None
+            },
+            "decoupage": {
+                "fonction": "sklearn.model_selection.train_test_split",
+                "test_size": self.test_size,
+                "random_state": self.random_state,
+                "stratify": analysis_type == CLASSIFICATION,
+                "shuffle": True,
+                "n_train": len(self.X_train_raw),
+                "n_test": len(self.X_test_raw)
+            },
+            "pretraitement": {
+                "classe": "sklearn.compose.ColumnTransformer",
+                "ajuste_sur": "train uniquement",
+                "transformateurs": transformers,
+                "colonnes_ignorees": ignored_columns
+            },
+            "modele": {
+                "nom": model_name,
+                "classe": f"{type(model).__module__}.{type(model).__name__}",
+                "hyperparametres": model.get_params()
+            },
+            "validation_croisee": {
+                "fonction": "sklearn.model_selection.cross_val_score",
+                "donnees": "train uniquement",
+                "cv": 5,
+                "scoring": scoring
+            }
+        }
+        return self._to_jsonable(params)
+
+    def get_run_parameters_json(self):
+        """Paramètres exacts du dernier entraînement, au format JSON (None si aucun)"""
+        if self.run_parameters is None:
+            return None
+        return json.dumps(self.run_parameters, indent=2, ensure_ascii=False)
 
     def predict_single_sample(self, input_data):
         """Prédit sur un nouvel échantillon"""

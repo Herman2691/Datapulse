@@ -828,6 +828,30 @@ def reglages_decoupage(key_prefix):
             )
     return test_pct / 100, int(random_state)
 
+def afficher_export_parametres(key_prefix):
+    """Affiche et propose au téléchargement les paramètres exacts du dernier entraînement"""
+    params_json = st.session_state.processor.get_run_parameters_json()
+    if params_json is None:
+        st.warning("⚠️ Aucun modèle entraîné")
+        return
+
+    params = st.session_state.processor.run_parameters
+    st.markdown("#### ⚙️ Paramètres Exacts de l'Analyse")
+    st.caption(
+        f"{params['modele']['nom']} • test={params['decoupage']['test_size']:.0%} • "
+        f"graine={params['decoupage']['random_state']} • scikit-learn {params['versions']['scikit-learn']}"
+    )
+    with st.expander("Voir le JSON"):
+        st.json(params)
+    st.download_button(
+        label="📥 Télécharger les paramètres (JSON)",
+        data=params_json,
+        file_name=f"parametres_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+        mime="application/json",
+        use_container_width=True,
+        key=f"{key_prefix}_params_json"
+    )
+
 def page_supervise():
     """Page de modélisation supervisée"""
     
@@ -948,6 +972,8 @@ def page_supervise():
             img_data = base64.b64decode(curve_img)
             img = Image.open(io.BytesIO(img_data))
             st.image(img, use_container_width=True)
+
+        afficher_export_parametres("supervise")
 
 def page_non_supervise():
     """Page d'analyse non-supervisée"""
@@ -1396,21 +1422,9 @@ def page_export():
     
     with export_tabs[3]:
         st.markdown("### Sauvegarde Modèle")
-        if st.session_state.model_trained:
-            st.info("🚧 Fonctionnalité en développement")
-            st.markdown("""
-            <div class='pro-card'>
-                <p>Cette fonctionnalité permettra :</p>
-                <p>
-                    • Sauvegarde du modèle (pickle)<br>
-                    • Export des paramètres<br>
-                    • Pipeline réutilisable<br>
-                    • Partage avec l'équipe
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.warning("⚠️ Aucun modèle entraîné")
+        afficher_export_parametres("export")
+        if st.session_state.processor.run_parameters is not None:
+            st.info("🚧 Sauvegarde du modèle (pickle) en développement")
 
 if __name__ == "__main__":
     main()
