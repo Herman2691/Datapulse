@@ -68,3 +68,11 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
+
+# Plateforme d'apprentissage : site JupyterLite construit et fichiers créés par l'étudiant
+plateforme/_site/
+plateforme/_contenu/
+plateforme/.jupyterlite.doit.db
+progression_module1.json
+journal_de_bord.md
+mes_resultats.json
