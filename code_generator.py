@@ -16,7 +16,7 @@ import sys
 
 # Sélection des colonnes, identique à DataProcessor._create_preprocessor
 DTYPES_PAR_TRANSFORMATEUR = {
-    "num": ("colonnes_numeriques", ["int64", "float64"]),
+    "num": ("colonnes_numeriques", ["number", "bool"]),
     "cat": ("colonnes_categorielles", ["object", "category"]),
 }
 
@@ -204,7 +204,7 @@ def generer_code(params, metriques=None):
         else:
             ajout(f"{variable} = {json.dumps(t['colonnes'], ensure_ascii=False)}")
     if pre["colonnes_ignorees"]:
-        ajout(f"# Attention : ces colonnes ne sont ni numériques ni texte, elles sont ignorées : "
+        ajout(f"# Attention : ces colonnes ne sont ni numériques, ni booléennes, ni texte, elles sont ignorées : "
               f"{json.dumps(pre['colonnes_ignorees'], ensure_ascii=False)}")
     ajout("")
     ajout("pretraitement = ColumnTransformer([")

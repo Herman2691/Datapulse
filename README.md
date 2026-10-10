@@ -26,7 +26,6 @@ Une application web complète pour l'analyse de données et le Machine Learning,
 - [Utilisation](#-utilisation)
 - [Structure du Projet](#-structure-du-projet)
 - [Algorithmes Disponibles](#-algorithmes-disponibles)
-- [Captures d'Écran](#-captures-décran)
 - [Documentation](#-documentation)
 - [Contribution](#-contribution)
 - [Auteur](#-auteur)
@@ -42,7 +41,8 @@ Une application web complète pour l'analyse de données et le Machine Learning,
 
 - ✅ **Interface Intuitive** : Design moderne et professionnel avec navigation fluide
 - ✅ **Analyses Complètes** : EDA, ML supervisé, clustering, analyses factorielles
-- ✅ **Support Format** : CSV 
+- ✅ **Support Format** : CSV et Excel (.xlsx, .xls)
+- ✅ **Reproductible** : découpage réglable, paramètres exportés, code scikit-learn équivalent
 - ✅ **Visualisations Avancées** : Graphiques interactifs et informatifs
 - ✅ **Export Flexible** : CSV, Excel, JSON
 - ✅ **Historique Intégré** : Suivi de toutes vos analyses
@@ -113,6 +113,14 @@ Une application web complète pour l'analyse de données et le Machine Learning,
   - Projections 2D/3D
   - Contribution des variables
 
+### 🎓 Reproductibilité et Apprentissage
+
+- **Réglages du découpage** : proportion du jeu de test (10 à 40 %) et graine aléatoire, sur les pages Modélisation et Comparaison
+- **Prétraitement sans fuite de données** : imputation, normalisation et encodage dans un `Pipeline` scikit-learn, appris sur le jeu d'entraînement uniquement (et réappris dans chaque pli de validation croisée)
+- **💻 Montre-moi le code** : après chaque entraînement, le code scikit-learn commenté qui reproduit exactement l'analyse, avec les résultats attendus
+- **Export des paramètres (JSON)** : versions, empreinte des données, découpage, prétraitement, hyperparamètres
+- **Référence pour comparaison (JSON)** : paramètres, métriques et prédictions ligne par ligne du jeu de test, pour comparer le résultat d'un code écrit à la main
+
 ### 📊 Analyses Factorielles
 
 - **ACM** (Analyse des Correspondances Multiples)
@@ -150,6 +158,7 @@ Une application web complète pour l'analyse de données et le Machine Learning,
   - Export CSV
   - Export Excel avec feuilles multiples
   - Export JSON de l'historique
+  - Paramètres, code Python et référence de comparaison du dernier modèle
   - Sauvegarde de modèles (en développement)
 
 ---
@@ -187,8 +196,8 @@ Une application web complète pour l'analyse de données et le Machine Learning,
 
 1. **Cloner le repository**
 ```bash
-git clone https://github.com/votre-username/datapulse-pro.git
-cd datapulse-pro
+git clone https://github.com/Herman2691/Datapulse.git
+cd Datapulse
 ```
 
 2. **Créer un environnement virtuel (recommandé)**
@@ -213,12 +222,12 @@ pip install -r requirements.txt
 streamlit>=1.28.0
 pandas>=2.0.0
 numpy>=1.24.0
+openpyxl>=3.1.0
 scikit-learn>=1.3.0
 scipy>=1.11.0
 matplotlib>=3.7.0
 seaborn>=0.12.0
 plotly>=5.17.0
-openpyxl>=3.1.0
 Pillow>=10.0.0
 ```
 
@@ -254,12 +263,14 @@ L'application s'ouvrira automatiquement dans votre navigateur à l'adresse : `ht
 - Allez dans **"🎯 Modélisation Supervisée"**
 - Choisissez le type d'analyse (Classification/Régression)
 - Sélectionnez un algorithme
+- Réglez si besoin la proportion de test et la graine aléatoire
 - Lancez l'entraînement
 
 #### 5️⃣ Évaluation
 - Consultez les métriques de performance
 - Analysez la courbe d'apprentissage
 - Vérifiez la matrice de confusion (classification)
+- Ouvrez **« 💻 Montre-moi le code »** pour voir le code scikit-learn équivalent
 
 #### 6️⃣ Test du Modèle
 - Accédez à **"🧪 Test du Modèle"**
@@ -275,33 +286,20 @@ L'application s'ouvrira automatiquement dans votre navigateur à l'adresse : `ht
 - Allez dans **"📤 Export"**
 - Téléchargez vos résultats
 - Sauvegardez l'historique
+- Récupérez le code, les paramètres et la référence du dernier modèle (onglet **💾 Modèle**)
 
 ---
 
 ## 📁 Structure du Projet
 
 ```
-datapulse-pro/
+Datapulse/
 │
 ├── Datapulse.py              # Application Streamlit principale
 ├── data_processor.py         # Module de traitement ML
+├── code_generator.py         # Génération du code scikit-learn équivalent
 ├── requirements.txt          # Dépendances Python
-├── README.md                 # Documentation
-│
-├── assets/                   # Ressources (images, logos)
-│   ├── logo.png
-│   └── screenshots/
-│
-├── data/                     # Dossier pour les datasets (gitignored)
-│   └── .gitkeep
-│
-├── exports/                  # Exports générés (gitignored)
-│   └── .gitkeep
-│
-└── docs/                     # Documentation supplémentaire
-    ├── user_guide.md
-    ├── api_reference.md
-    └── examples/
+└── README.md                 # Documentation
 ```
 
 ### Description des Fichiers Principaux
@@ -316,12 +314,19 @@ Interface utilisateur Streamlit avec :
 #### `data_processor.py`
 Classe `DataProcessor` gérant :
 - Chargement de données (CSV/Excel)
-- Prétraitement automatique
+- Prétraitement automatique dans un `Pipeline` (sans fuite de données)
+- Export des paramètres exacts et de la référence de comparaison
 - Entraînement de modèles
 - Analyses statistiques
 - Visualisations avancées
 - Clustering et réduction de dimension
 - ACM et AFC
+
+#### `code_generator.py`
+Génère, à partir des paramètres exportés en JSON, le code Python commenté qui reproduit exactement un entraînement. Utilisable aussi en ligne de commande :
+```bash
+python code_generator.py parametres.json
+```
 
 ---
 
@@ -364,26 +369,6 @@ Classe `DataProcessor` gérant :
 
 ---
 
-## 📸 Captures d'Écran
-
-### Page d'Accueil
-![Accueil](assets/screenshots/home.png)
-*Interface moderne avec présentation des fonctionnalités*
-
-### Analyse EDA
-![EDA](assets/screenshots/eda.png)
-*Statistiques descriptives et visualisations*
-
-### Modélisation ML
-![ML](assets/screenshots/modeling.png)
-*Entraînement de modèles avec évaluation complète*
-
-### Test et Prédiction
-![Test](assets/screenshots/prediction.png)
-*Interface de test interactive*
-
----
-
 ## 📚 Documentation
 
 ### Configuration des Modèles
@@ -410,11 +395,13 @@ KNeighborsClassifier(
 
 ### Prétraitement Automatique
 
-Le système applique automatiquement :
-- **Imputation** : Médiane (numériques), mode (catégorielles)
-- **Normalisation** : StandardScaler pour features numériques
+Le système applique automatiquement, dans un `Pipeline` appris sur le jeu d'entraînement uniquement :
+- **Imputation** : Médiane (numériques et booléennes), mode (catégorielles)
+- **Normalisation** : StandardScaler pour features numériques (les booléens deviennent 0/1)
 - **Encodage** : OneHotEncoder pour features catégorielles
-- **Split** : 80% train / 20% test avec stratification
+- **Split** : 80 % train / 20 % test par défaut (réglable de 10 à 40 %), stratifié en classification, graine 42 par défaut (réglable)
+
+Les colonnes d'un autre type (dates lues depuis Excel, par exemple) sont ignorées et signalées dans les paramètres exportés. Une date lue depuis un CSV est du texte : elle est traitée comme une catégorie.
 
 ### Format des Données
 
@@ -501,8 +488,8 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 ## 📞 Support
 
 Pour toute question ou problème :
-- 🐛 Ouvrir une [Issue](https://github.com/votre-username/datapulse-pro/issues)
-- 💬 Démarrer une [Discussion](https://github.com/votre-username/datapulse-pro/discussions)
+- 🐛 Ouvrir une [Issue](https://github.com/Herman2691/Datapulse/issues)
+- 💬 Démarrer une [Discussion](https://github.com/Herman2691/Datapulse/discussions)
 - 📧 Contact direct : support@datapulse.com
 
 ---

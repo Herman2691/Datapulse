@@ -16,6 +16,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 import io
+import os
+import tempfile
 import base64
 from PIL import Image
 
@@ -449,7 +451,7 @@ def main():
         st.markdown("### 📋 NAVIGATION")
         
         page = st.radio(
-            "",
+            "Navigation",
             ["🏠 Accueil", 
              "📂 Chargement & EDA", 
              "🎯 Modélisation Supervisée",
@@ -491,6 +493,8 @@ def main():
                 st.session_state.data_loaded = False
                 st.session_state.model_trained = False
                 st.session_state.analysis_history = []
+                st.session_state.pop('resultats_supervise', None)
+                st.session_state.pop('fichier_charge', None)
                 st.rerun()
     
     # Routage des pages
@@ -670,12 +674,21 @@ def page_chargement_eda():
     if uploaded_file is not None:
         try:
             file_extension = uploaded_file.name.split('.')[-1].lower()
-            temp_path = f"temp_{uploaded_file.name}"
-            with open(temp_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
+            # Copie dans un dossier temporaire, supprimé dès la lecture terminée
+            with tempfile.TemporaryDirectory() as dossier:
+                temp_path = os.path.join(dossier, uploaded_file.name)
+                with open(temp_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                chargement_ok = st.session_state.processor.load_data(temp_path, display_name=uploaded_file.name)
             
-            if st.session_state.processor.load_data(temp_path, display_name=uploaded_file.name):
+            if chargement_ok:
                 st.session_state.data_loaded = True
+                
+                # Nouveau fichier : les résultats affichés ne le concernent plus
+                fichier_id = (uploaded_file.name, uploaded_file.size)
+                if st.session_state.get('fichier_charge') != fichier_id:
+                    st.session_state.fichier_charge = fichier_id
+                    st.session_state.pop('resultats_supervise', None)
                 
                 file_type = "Excel" if file_extension in ['xlsx', 'xls'] else "CSV"
                 st.success(f"✅ Fichier {file_type} chargé avec succès : {len(st.session_state.processor.data)} lignes, {len(st.session_state.processor.column_names)} colonnes")
@@ -829,14 +842,25 @@ def reglages_decoupage(key_prefix):
             )
     return test_pct / 100, int(random_state)
 
-def afficher_export_parametres(key_prefix):
-    """Affiche et propose au téléchargement les paramètres exacts du dernier entraînement"""
-    params_json = st.session_state.processor.get_run_parameters_json()
-    if params_json is None:
+def instantane_entrainement():
+    """Paramètres, référence et code du dernier entraînement, figés (None si aucun)"""
+    processor = st.session_state.processor
+    if processor.run_parameters is None:
+        return None
+    return {
+        'params': processor.run_parameters,
+        'params_json': processor.get_run_parameters_json(),
+        'reference_json': processor.get_reference_json(),
+        'code': generer_code(processor.run_parameters, processor.run_metrics)
+    }
+
+def afficher_export_parametres(key_prefix, instantane):
+    """Affiche et propose au téléchargement les paramètres exacts d'un entraînement"""
+    if instantane is None:
         st.warning("⚠️ Aucun modèle entraîné")
         return
 
-    params = st.session_state.processor.run_parameters
+    params = instantane['params']
     st.markdown("#### ⚙️ Paramètres Exacts de l'Analyse")
     st.caption(
         f"{params['modele']['nom']} • test={params['decoupage']['test_size']:.0%} • "
@@ -846,18 +870,17 @@ def afficher_export_parametres(key_prefix):
         st.json(params)
     st.download_button(
         label="📥 Télécharger les paramètres (JSON)",
-        data=params_json,
+        data=instantane['params_json'],
         file_name=f"parametres_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
         mime="application/json",
         use_container_width=True,
         key=f"{key_prefix}_params_json"
     )
 
-    reference_json = st.session_state.processor.get_reference_json()
-    if reference_json is not None:
+    if instantane['reference_json'] is not None:
         st.download_button(
             label="📥 Télécharger la référence pour comparaison (JSON)",
-            data=reference_json,
+            data=instantane['reference_json'],
             file_name=f"reference_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
             mime="application/json",
             help="Paramètres, métriques et prédictions ligne par ligne du jeu de test",
@@ -865,19 +888,17 @@ def afficher_export_parametres(key_prefix):
             key=f"{key_prefix}_reference_json"
         )
 
-def afficher_code(key_prefix):
-    """« Montre-moi le code » : code scikit-learn qui reproduit exactement le dernier entraînement"""
-    processor = st.session_state.processor
-    if processor.run_parameters is None:
+def afficher_code(key_prefix, instantane):
+    """« Montre-moi le code » : code scikit-learn qui reproduit exactement un entraînement"""
+    if instantane is None:
         return
     
-    code = generer_code(processor.run_parameters, processor.run_metrics)
     with st.expander("💻 Montre-moi le code"):
         st.caption("Ce code reproduit exactement l'analyse ci-dessus. Place-le à côté de ton fichier de données et exécute-le.")
-        st.code(code, language="python")
+        st.code(instantane['code'], language="python")
         st.download_button(
             label="📥 Télécharger le code (.py)",
-            data=code,
+            data=instantane['code'],
             file_name=f"analyse_{datetime.now().strftime('%Y%m%d_%H%M%S')}.py",
             mime="text/x-python",
             use_container_width=True,
@@ -970,8 +991,6 @@ def page_supervise():
         
         report_text, main_img, tree_img, curve_img = result if len(result) == 4 else (*result, None, None)
         
-        st.success(f"✅ Modèle {selected_model} entraîné avec succès!")
-        
         st.session_state.model_trained = True
         st.session_state.current_model_info = {
             'model': selected_model,
@@ -984,8 +1003,24 @@ def page_supervise():
         
         st.session_state.analysis_history.append(st.session_state.current_model_info.copy())
         
-        st.markdown("### 📊 Résultats de l'Évaluation")
-        st.text(report_text)
+        # Conservés en session : un clic (téléchargement, autre réglage) relance le script
+        # et les résultats doivent rester affichés
+        st.session_state.resultats_supervise = {
+            'model': selected_model,
+            'report': report_text,
+            'main_img': main_img,
+            'tree_img': tree_img,
+            'curve_img': curve_img,
+            'instantane': instantane_entrainement()
+        }
+        st.success(f"✅ Modèle {selected_model} entraîné avec succès!")
+    
+    resultats = st.session_state.get('resultats_supervise')
+    if resultats:
+        main_img, tree_img, curve_img = resultats['main_img'], resultats['tree_img'], resultats['curve_img']
+        
+        st.markdown(f"### 📊 Résultats de l'Évaluation : {resultats['model']}")
+        st.text(resultats['report'])
         
         if main_img:
             st.markdown("#### 📈 Visualisation Principale")
@@ -1005,8 +1040,8 @@ def page_supervise():
             img = Image.open(io.BytesIO(img_data))
             st.image(img, use_container_width=True)
 
-        afficher_code("supervise")
-        afficher_export_parametres("supervise")
+        afficher_code("supervise", resultats['instantane'])
+        afficher_export_parametres("supervise", resultats['instantane'])
 
 def page_non_supervise():
     """Page d'analyse non-supervisée"""
@@ -1206,8 +1241,14 @@ def page_test_modele():
         
         with col:
             dtype = st.session_state.processor.data[feature].dtype
-            
-            if pd.api.types.is_numeric_dtype(dtype):
+
+            if pd.api.types.is_bool_dtype(dtype):
+                input_values[feature] = st.checkbox(
+                    feature,
+                    value=bool(st.session_state.processor.data[feature].mode()[0]),
+                    key=f"input_{feature}"
+                )
+            elif pd.api.types.is_numeric_dtype(dtype):
                 input_values[feature] = st.number_input(
                     feature,
                     value=float(st.session_state.processor.data[feature].mean()),
@@ -1455,9 +1496,10 @@ def page_export():
     
     with export_tabs[3]:
         st.markdown("### Sauvegarde Modèle")
-        afficher_code("export")
-        afficher_export_parametres("export")
-        if st.session_state.processor.run_parameters is not None:
+        instantane = instantane_entrainement()
+        afficher_code("export", instantane)
+        afficher_export_parametres("export", instantane)
+        if instantane is not None:
             st.info("🚧 Sauvegarde du modèle (pickle) en développement")
 
 if __name__ == "__main__":

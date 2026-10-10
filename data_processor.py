@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import platform
+import sys
 import pandas as pd
 import numpy as np
 import sklearn
@@ -47,6 +48,15 @@ import warnings
 from datetime import datetime
 
 warnings.filterwarnings('ignore')
+
+
+def _log(message):
+    """print tolérant : une console Windows en cp1252 ne sait pas afficher les emojis"""
+    try:
+        print(message)
+    except UnicodeEncodeError:
+        encodage = getattr(sys.stdout, "encoding", None) or "ascii"
+        print(message.encode(encodage, errors="replace").decode(encodage))
 
 # Configuration du style
 sns.set_theme(style="darkgrid")
@@ -194,17 +204,17 @@ class DataProcessor:
             file_extension = file_path.lower().split('.')[-1]
             
             if file_extension in ['xlsx', 'xls']:
-                print(f"📊 Chargement d'un fichier Excel...")
+                _log(f"📊 Chargement d'un fichier Excel...")
                 self.read_options = {"fonction": "pandas.read_excel",
                                      "engine": 'openpyxl' if file_extension == 'xlsx' else None}
                 self.data = pd.read_excel(file_path, engine=self.read_options["engine"])
-                print(f"✅ Fichier Excel chargé avec succès")
+                _log(f"✅ Fichier Excel chargé avec succès")
             else:
                 self.read_options = {"fonction": "pandas.read_csv", "sep": None, "engine": 'python', "encoding": 'utf-8'}
                 self.data = pd.read_csv(file_path, sep=None, engine='python', encoding='utf-8')
             
             if self.data.empty:
-                print("❌ Erreur: Le fichier est vide")
+                _log("❌ Erreur: Le fichier est vide")
                 return False
 
             self.source_file = display_name or os.path.basename(file_path)
@@ -213,18 +223,19 @@ class DataProcessor:
             self.columns_stripped = self.data.columns.tolist() != original_columns
             self.column_names = self.data.columns.tolist()
             
-            print(f"✅ Données chargées: {len(self.data)} lignes, {len(self.column_names)} colonnes")
+            _log(f"✅ Données chargées: {len(self.data)} lignes, {len(self.column_names)} colonnes")
             return True
             
         except Exception as e:
-            print(f"❌ Erreur lors du chargement: {e}")
+            _log(f"❌ Erreur lors du chargement: {e}")
             self.data = None
             self.column_names = []
             return False
 
     def _create_preprocessor(self, X_raw):
         """Crée un pipeline de prétraitement adaptatif"""
-        numeric_features = X_raw.select_dtypes(include=['int64', 'float64']).columns.tolist()
+        # Booléens inclus : vrai/faux deviennent 1/0
+        numeric_features = X_raw.select_dtypes(include=['number', 'bool']).columns.tolist()
         categorical_features = X_raw.select_dtypes(include=['object', 'category']).columns.tolist()
 
         numeric_transformer = Pipeline(steps=[
@@ -260,7 +271,7 @@ class DataProcessor:
         try:
             if analysis_type in [CLASSIFICATION, REGRESSION]:
                 if not target_column or target_column not in self.data.columns:
-                    print("❌ Erreur: Colonne cible non définie")
+                    _log("❌ Erreur: Colonne cible non définie")
                     return False
 
                 self.target_column = target_column
@@ -286,7 +297,7 @@ class DataProcessor:
                 self.pipeline = None
                 self.X_train = self.X_test = None
 
-                print(f"✅ Prétraitement: Train={len(self.X_train_raw)}, Test={len(self.X_test_raw)}")
+                _log(f"✅ Prétraitement: Train={len(self.X_train_raw)}, Test={len(self.X_test_raw)}")
                 return True
 
             elif analysis_type in [CLUSTERING, DIMENSION_REDUCTION, ACM_ANALYSIS, AFC_ANALYSIS]:
@@ -304,13 +315,13 @@ class DataProcessor:
                 
                 self.X_train = self.X_test = self.y_train = self.y_test = None
                 
-                print(f"✅ Prétraitement non-supervisé: {self.X_full_processed.shape[0]} échantillons")
+                _log(f"✅ Prétraitement non-supervisé: {self.X_full_processed.shape[0]} échantillons")
                 return True
 
             return False
 
         except Exception as e:
-            print(f"❌ Erreur prétraitement: {e}")
+            _log(f"❌ Erreur prétraitement: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -512,7 +523,7 @@ class DataProcessor:
             ('model', model)
         ])
 
-        print(f"🔧 Entraînement de {model_name}...")
+        _log(f"🔧 Entraînement de {model_name}...")
         self.pipeline.fit(self.X_train_raw, self.y_train)
         y_pred = self.pipeline.predict(self.X_test_raw)
 
@@ -695,7 +706,7 @@ class DataProcessor:
         
         # COURBE D'APPRENTISSAGE
         try:
-            print("📊 Génération courbe d'apprentissage...")
+            _log("📊 Génération courbe d'apprentissage...")
             X_combined = pd.concat([self.X_train_raw, self.X_test_raw])
             y_combined = np.concatenate([self.y_train, self.y_test])
 
@@ -761,9 +772,9 @@ class DataProcessor:
                 
         except Exception as e:
             report += f"\n⚠️ Impossible de générer la courbe: {e}\n"
-            print(f"Erreur courbe: {e}")
+            _log(f"Erreur courbe: {e}")
         
-        print(f"✅ Entraînement de {model_name} terminé!")
+        _log(f"✅ Entraînement de {model_name} terminé!")
         return report, main_img_str, tree_img_str, learning_curve_img
 
     def run_clustering(self, model_name, n_clusters):
@@ -780,7 +791,7 @@ class DataProcessor:
         try:
             if model_name == "K-Means":
                 
-                print(f"🔄 K-Means avec k={n_clusters}...")
+                _log(f"🔄 K-Means avec k={n_clusters}...")
                 kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
                 labels = kmeans.fit_predict(X_clust)
                 
@@ -833,7 +844,7 @@ class DataProcessor:
                     main_img_str = self._plot_to_base64(fig)
                     
                     # MÉTHODE DU COUDE
-                    print("📊 Génération méthode du coude...")
+                    _log("📊 Génération méthode du coude...")
                     inertias = []
                     silhouettes = []
                     K_range = range(2, min(11, len(X_clust) // 2))
@@ -872,7 +883,7 @@ class DataProcessor:
 
             elif model_name == "CAH (Hierarchical)":
                 
-                print("🌳 Calcul de la hiérarchie...")
+                _log("🌳 Calcul de la hiérarchie...")
                 linked = linkage(X_clust, method='ward')
                 
                 fig, ax = plt.subplots(figsize=(16, 10))
@@ -912,11 +923,11 @@ class DataProcessor:
                 report += f"   • Seuil suggéré (70%): {0.7*max(linked[:,2]):.2f}\n"
                 report += f"   • Pour {n_clusters} clusters, couper à la ligne rouge\n"
 
-            print(f"✅ Clustering {model_name} terminé!")
+            _log(f"✅ Clustering {model_name} terminé!")
             return report, main_img_str, secondary_img_str
 
         except Exception as e:
-            print(f"❌ Erreur clustering: {e}")
+            _log(f"❌ Erreur clustering: {e}")
             import traceback
             traceback.print_exc()
             return f"❌ Erreur lors du clustering: {e}", None, None
@@ -929,7 +940,7 @@ class DataProcessor:
         try:
             n_components = min(n_components, self.X_full_processed.shape[1])
             
-            print(f"🔄 Calcul de l'ACP avec {n_components} composantes...")
+            _log(f"🔄 Calcul de l'ACP avec {n_components} composantes...")
             pca = PCA(n_components=n_components)
             self.pca_result = pca.fit_transform(self.X_full_processed)
             
@@ -1067,11 +1078,11 @@ class DataProcessor:
                         contrib = components[i][idx]
                         report += f"      • {feature_names[idx]}: {contrib:.3f}\n"
 
-            print("✅ ACP terminée!")
+            _log("✅ ACP terminée!")
             return report, scree_img, scatter_img
             
         except Exception as e:
-            print(f"❌ Erreur ACP: {e}")
+            _log(f"❌ Erreur ACP: {e}")
             import traceback
             traceback.print_exc()
             return f"❌ Erreur lors de l'ACP: {e}", None, None
@@ -1091,7 +1102,7 @@ class DataProcessor:
             if len(categorical_cols) < 2:
                 return "❌ Au moins 2 variables catégorielles nécessaires pour l'ACM.", None, None
             
-            print(f"📊 ACM sur {len(categorical_cols)} variables...")
+            _log(f"📊 ACM sur {len(categorical_cols)} variables...")
             
             # Créer le tableau disjonctif complet
             data_acm = self.data[categorical_cols].copy()
@@ -1187,11 +1198,11 @@ class DataProcessor:
                 plt.tight_layout()
                 projection_img = self._plot_to_base64(fig)
             
-            print("✅ ACM terminée!")
+            _log("✅ ACM terminée!")
             return report, scree_img, projection_img
             
         except Exception as e:
-            print(f"❌ Erreur ACM: {e}")
+            _log(f"❌ Erreur ACM: {e}")
             import traceback
             traceback.print_exc()
             return f"❌ Erreur lors de l'ACM: {e}", None, None
@@ -1205,7 +1216,7 @@ class DataProcessor:
             if row_col not in self.data.columns or col_col not in self.data.columns:
                 return "❌ Colonnes invalides.", None, None
             
-            print(f"📊 AFC: {row_col} vs {col_col}...")
+            _log(f"📊 AFC: {row_col} vs {col_col}...")
             
             # Créer le tableau de contingence
             contingency_table = pd.crosstab(self.data[row_col], self.data[col_col])
@@ -1338,11 +1349,11 @@ class DataProcessor:
             except Exception as e:
                 report += f"\n⚠️ Projection non disponible: {e}\n"
             
-            print("✅ AFC terminée!")
+            _log("✅ AFC terminée!")
             return report, contingency_img, projection_img
             
         except Exception as e:
-            print(f"❌ Erreur AFC: {e}")
+            _log(f"❌ Erreur AFC: {e}")
             import traceback
             traceback.print_exc()
             return f"❌ Erreur lors de l'AFC: {e}", None, None
@@ -1489,8 +1500,12 @@ class DataProcessor:
 
     def predict_single_sample(self, input_data):
         """Prédit sur un nouvel échantillon"""
-        if self.current_model is None or self.preprocessor is None:
+        # On s'appuie sur la photographie du dernier entraînement : une analyse
+        # non supervisée lancée ensuite remplace self.preprocessor et le type d'analyse.
+        if self.pipeline is None or self.run_parameters is None:
             return "❌ Modèle non entraîné.", None
+        analysis_type = self.run_parameters["cible"]["type_analyse"]
+        encoded_classes = self.run_parameters["cible"]["classes_encodees"]
             
         try:
             processed_input = {}
@@ -1503,45 +1518,35 @@ class DataProcessor:
                     except:
                         processed_input[feature] = value
             
-            X_test_raw = pd.DataFrame([processed_input])
-            original_features = self.preprocessor.feature_names_in_
-            
-            X_test_raw_filtered = pd.DataFrame(columns=original_features)
-            for col in original_features:
-                if col in processed_input:
-                    X_test_raw_filtered[col] = [processed_input[col]]
-                else:
-                    X_test_raw_filtered[col] = [np.nan]
-            
-            X_test_processed = self.preprocessor.transform(X_test_raw_filtered)
-            X_test_final = pd.DataFrame(X_test_processed, columns=self.preprocessor.get_feature_names_out())
+            original_features = self.pipeline.feature_names_in_
+            X_input = pd.DataFrame([{col: processed_input.get(col, np.nan) for col in original_features}])
 
-            prediction = self.current_model.predict(X_test_final)[0]
+            prediction = self.pipeline.predict(X_input)[0]
             
-            if self.current_model_type == CLASSIFICATION:
-                if self.label_encoder is not None:
-                    prediction_label = self.label_encoder.inverse_transform([prediction])[0]
-                elif hasattr(self.current_model, 'classes_'):
-                    prediction_label = self.current_model.classes_[prediction]
-                else:
-                    prediction_label = prediction
+            if analysis_type == CLASSIFICATION:
+                # Classes du modèle (encodées si la cible était du texte) -> étiquettes d'origine
+                def label(classe):
+                    return encoded_classes[int(classe)] if encoded_classes is not None else classe
+
+                prediction_label = label(prediction)
                 
-                if hasattr(self.current_model, 'predict_proba'):
-                    probas = self.current_model.predict_proba(X_test_final)[0]
-                    proba_str = ", ".join([f"Classe {i}: {p*100:.1f}%" for i, p in enumerate(probas)])
+                if hasattr(self.pipeline, 'predict_proba'):
+                    probas = self.pipeline.predict_proba(X_input)[0]
+                    proba_str = ", ".join(f"{label(c)}: {p*100:.1f}%"
+                                          for c, p in zip(self.pipeline.named_steps["model"].classes_, probas))
                     message = f"✅ Prédiction: **{prediction_label}**\nProbabilités: {proba_str}"
                 else:
                     message = f"✅ Prédiction: **{prediction_label}**"
                 
                 return message, prediction_label
             
-            elif self.current_model_type == REGRESSION:
+            elif analysis_type == REGRESSION:
                 return f"✅ Prédiction: **{prediction:.2f}**", prediction
             
             return "Prédiction non supportée.", None
 
         except Exception as e:
-            print(f"❌ Erreur prédiction: {e}")
+            _log(f"❌ Erreur prédiction: {e}")
             import traceback
             traceback.print_exc()
             return f"❌ Erreur lors de la prédiction: {e}", None
@@ -1573,31 +1578,31 @@ def create_sample_dataset(n_samples=1000, task='classification'):
 
 
 if __name__ == "__main__":
-    print("="*70)
-    print("  TEST DU MODULE DATA_PROCESSOR")
-    print("="*70)
+    _log("="*70)
+    _log("  TEST DU MODULE DATA_PROCESSOR")
+    _log("="*70)
     
     df = create_sample_dataset(500, 'classification')
     df.to_csv('test_data.csv', index=False)
-    print(f"✅ Dataset créé: {df.shape[0]} lignes, {df.shape[1]} colonnes")
+    _log(f"✅ Dataset créé: {df.shape[0]} lignes, {df.shape[1]} colonnes")
     
     processor = DataProcessor()
     
     if processor.load_data('test_data.csv'):
-        print("✅ Chargement réussi")
+        _log("✅ Chargement réussi")
     
     if processor.preprocess_data('Target', CLASSIFICATION):
-        print("✅ Prétraitement réussi")
+        _log("✅ Prétraitement réussi")
     
     result = processor.run_model("Random Forest", CLASSIFICATION)
     if result and len(result) > 0 and not isinstance(result[0], str):
-        print("✅ Entraînement réussi")
-        print("\nRapport:")
-        print(result[0][:200] + "...")
+        _log("✅ Entraînement réussi")
+        _log("\nRapport:")
+        _log(result[0][:200] + "...")
     
     import os
     os.remove('test_data.csv')
     
-    print("\n" + "="*70)
-    print("✅ TOUS LES TESTS SONT PASSÉS!")
-    print("="*70)
+    _log("\n" + "="*70)
+    _log("✅ TOUS LES TESTS SONT PASSÉS!")
+    _log("="*70)
