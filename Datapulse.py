@@ -26,6 +26,7 @@ from PIL import Image
 from data_processor import DataProcessor, CLASSIFICATION, REGRESSION, CLUSTERING, DIMENSION_REDUCTION, ACM_ANALYSIS, AFC_ANALYSIS
 from code_generator import generer_code
 from comparateur import comparer
+import cours
 
 # Configuration de la page
 st.set_page_config(
@@ -458,6 +459,7 @@ def main():
         page = st.radio(
             "Navigation",
             ["🏠 Accueil", 
+             "📚 Cours",
              "📂 Chargement & EDA", 
              "🎯 Modélisation Supervisée",
              "🔍 Analyse Non-Supervisée",
@@ -467,7 +469,8 @@ def main():
              "⚖️ Comparaison",
              "📊 Historique",
              "📤 Export"],
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            key="navigation"
         )
         
         st.markdown("---")
@@ -506,6 +509,8 @@ def main():
     # Routage des pages
     if page == "🏠 Accueil":
         page_accueil()
+    elif page == "📚 Cours":
+        page_cours()
     elif page == "📂 Chargement & EDA":
         page_chargement_eda()
     elif page == "🎯 Modélisation Supervisée":
@@ -666,10 +671,184 @@ def page_accueil():
         if st.button("🚀 COMMENCER L'ANALYSE", width="stretch", type="primary"):
             st.rerun()
 
+def charger_donnees_module(module):
+    """Charge le jeu de données d'un module et ouvre la page Chargement & EDA"""
+    processor = DataProcessor()
+    if processor.load_data(module['donnees'], display_name=os.path.basename(module['donnees'])):
+        st.session_state.processor = processor
+        st.session_state.data_loaded = True
+        st.session_state.model_trained = False
+        st.session_state.current_model_info = None
+        st.session_state.target_column = module['cible']
+        st.session_state.fichier_charge = (os.path.basename(module['donnees']), os.path.getsize(module['donnees']))
+        st.session_state.pop('resultats_supervise', None)
+        st.session_state.navigation = "📂 Chargement & EDA"
+        st.session_state.message_cours = f"✅ Données du module chargées : {os.path.basename(module['donnees'])}, cible « {module['cible']} »."
+
+def aller_a(page):
+    """Change de page (à utiliser comme callback de bouton)"""
+    st.session_state.navigation = page
+
+def page_cours():
+    """Page des cours théoriques de la plateforme d'apprentissage"""
+
+    st.markdown("## 📚 Cours")
+    st.caption("La théorie de chaque module, puis la pratique dans DATAPULSE et dans le code.")
+
+    with st.expander("🗺️ Le parcours complet", expanded=False):
+        for etape in cours.PARCOURS:
+            etat = "✅ disponible" if etape['numero'] == 1 else "🔒 bientôt"
+            st.markdown(f"**Module {etape['numero']} : {etape['titre']}** ({etat})  \n{etape['contenu']}")
+
+    module = cours.MODULE_1
+    st.markdown(f"### {module['titre']}")
+    st.caption(f"Durée : {module['duree']}")
+
+    onglets = st.tabs(["🎯 Objectifs", "① Modèle", "② Jeu de test", "③ Régression logistique",
+                       "④ Matrice", "⑤ Le code", "✅ Quiz"])
+
+    with onglets[0]:
+        st.markdown("À la fin de ce module, tu sauras :")
+        for i, objectif in enumerate(module['objectifs'], 1):
+            st.markdown(f"{i}. {objectif}")
+        st.info("Lis les leçons dans l'ordre, réponds au quiz, puis passe à la pratique : "
+                "d'abord dans DATAPULSE, ensuite dans le code.")
+
+    with onglets[1]:
+        st.markdown(cours.LECON_MODELE)
+        if os.path.exists(module['donnees']):
+            apercu = pd.read_csv(module['donnees'], nrows=5)
+            colonnes = list(apercu.columns[:4]) + [module['cible']]
+            st.markdown("**Aperçu des données du module** (4 des 30 variables explicatives, puis la cible) :")
+            st.dataframe(apercu[colonnes], width="stretch", hide_index=True)
+
+    with onglets[2]:
+        st.markdown(cours.LECON_TEST)
+        n_total, n_malignes = 569, 212
+        test_pct = st.slider("Proportion du jeu de test (%)", 10, 40, 20, 5, key="cours_test_pct")
+        n_test = int(np.ceil(n_total * test_pct / 100))
+        n_train = n_total - n_test
+        malignes_test = round(n_malignes * n_test / n_total)
+        fig = go.Figure()
+        fig.add_bar(y=["Découpage"], x=[n_train], name=f"Entraînement : {n_train}", orientation="h", marker_color="#6B5CE7")
+        fig.add_bar(y=["Découpage"], x=[n_test], name=f"Test : {n_test}", orientation="h", marker_color="#F59E0B")
+        fig.update_layout(barmode="stack", height=170, margin=dict(l=10, r=10, t=10, b=10),
+                          paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                          legend=dict(orientation="h", y=-0.4), yaxis=dict(showticklabels=False))
+        st.plotly_chart(fig)
+        st.markdown(f"Avec `stratify=y`, le jeu de test garde la même proportion de tumeurs malignes : "
+                    f"environ **{malignes_test} malignes sur {n_test}** ({n_malignes / n_total:.0%}), comme dans l'ensemble des données.")
+
+    with onglets[3]:
+        st.markdown(cours.LECON_LOGISTIQUE)
+        seuil = st.slider("Seuil de décision", 0.05, 0.95, 0.50, 0.05, key="cours_seuil")
+        z = np.linspace(-6, 6, 300)
+        proba = 1 / (1 + np.exp(-z))
+        z_seuil = np.log(seuil / (1 - seuil))
+        fig = go.Figure()
+        fig.add_vrect(x0=-6, x1=z_seuil, fillcolor="#EF4444", opacity=0.08, line_width=0,
+                      annotation_text="prédit : maligne (0)", annotation_position="top left")
+        fig.add_vrect(x0=z_seuil, x1=6, fillcolor="#10B981", opacity=0.08, line_width=0,
+                      annotation_text="prédit : bénigne (1)", annotation_position="top right")
+        fig.add_scatter(x=z, y=proba, mode="lines", line=dict(color="#6B5CE7", width=3), name="probabilité")
+        fig.add_hline(y=seuil, line_dash="dash", line_color="#1F1F1F", annotation_text=f"seuil = {seuil:.2f}")
+        fig.update_layout(height=360, margin=dict(l=10, r=10, t=30, b=10), showlegend=False,
+                          xaxis_title="score calculé à partir des 30 mesures", yaxis_title="probabilité « bénigne »",
+                          paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(240, 244, 249, 0.8)")
+        st.plotly_chart(fig)
+        if seuil < 0.5:
+            st.warning("Seuil bas : le modèle prédit plus souvent « bénigne », il risque de **manquer des cancers** (faux négatifs).")
+        elif seuil > 0.5:
+            st.info("Seuil haut : le modèle ne dit « bénigne » que s'il est très sûr. Il détecte plus de cancers, "
+                    "au prix de fausses alertes (faux positifs).")
+        else:
+            st.success("Seuil par défaut (0,5) : c'est celui utilisé par scikit-learn et par DATAPULSE.")
+
+    with onglets[4]:
+        st.markdown(cours.LECON_MATRICE)
+        (vp, fn), (fp, vn) = cours.MATRICE_MODULE
+        col1, col2 = st.columns([3, 2])
+        with col1:
+            fig = go.Figure(go.Heatmap(
+                z=[[vp, fn], [fp, vn]],
+                x=["prédit maligne", "prédit bénigne"], y=["vraie maligne", "vraie bénigne"],
+                text=[[f"VP = {vp}", f"FN = {fn}"], [f"FP = {fp}", f"VN = {vn}"]],
+                texttemplate="%{text}", textfont=dict(size=18), colorscale="Purples", showscale=False))
+            fig.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10), yaxis=dict(autorange="reversed"),
+                              paper_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(fig)
+        with col2:
+            st.metric("Accuracy", f"{(vp + vn) / (vp + fn + fp + vn):.1%}", help="(VP + VN) / total")
+            st.metric("Rappel des tumeurs malignes", f"{vp / (vp + fn):.1%}", help="VP / (VP + FN)")
+            st.metric("Précision des tumeurs malignes", f"{vp / (vp + fp):.1%}", help="VP / (VP + FP)")
+        st.caption("Matrice obtenue par DATAPULSE sur les données du module (régression logistique, test 20 %, graine 42). "
+                   f"Le modèle a manqué {fn} tumeur maligne sur {vp + fn}.")
+
+    with onglets[5]:
+        st.markdown("Voici le code scikit-learn qui reproduit **exactement** l'analyse du module. "
+                    "Dans DATAPULSE, le bouton **💻 Montre-moi le code** l'affiche pour n'importe quel entraînement.")
+        st.code(cours.CODE_MODULE, language="python")
+        st.markdown("Réfléchis à chaque question avant d'ouvrir la réponse :")
+        for question, reponse in cours.QUESTIONS_CODE:
+            with st.expander(question):
+                st.markdown(reponse)
+
+    with onglets[6]:
+        reponses = []
+        for i, q in enumerate(cours.QUIZ_MODULE_1):
+            reponses.append(st.radio(f"**{i + 1}. {q['question']}**", q['choix'], index=None, key=f"cours_quiz_{i}"))
+        if st.button("Vérifier mes réponses", key="cours_quiz_verifier"):
+            if any(r is None for r in reponses):
+                st.warning("Réponds d'abord aux trois questions.")
+            else:
+                score = 0
+                for i, (q, r) in enumerate(zip(cours.QUIZ_MODULE_1, reponses)):
+                    choix = q['choix'].index(r)
+                    juste = choix == q['bonne']
+                    score += juste
+                    (st.success if juste else st.error)(f"**{i + 1}.** {q['explications'][choix]}")
+                if score >= 2:
+                    st.success(f"🎉 {score} / 3 : tu peux passer à la pratique !")
+                else:
+                    st.info(f"{score} / 3 : relis les leçons 1 et 2, puis réessaie.")
+
+    st.markdown("---")
+    st.markdown("### 🧪 Passer à la pratique")
+    st.markdown("#### 1. Manipuler dans DATAPULSE")
+    st.markdown(
+        "- Charge les données du module (bouton ci-dessous), observe la colonne `target`.\n"
+        "- Dans **🎯 Modélisation Supervisée** : *Classification*, puis *Régression Logistique*. Note l'accuracy "
+        "et la matrice de confusion.\n"
+        "- Refais l'entraînement en changeant **la proportion de test** (10 % → 40 %), puis **la graine**. "
+        "Les résultats changent-ils ? Qu'est-ce que cela dit de la fiabilité d'un seul découpage ?\n"
+        "- Ouvre **💻 Montre-moi le code** sous les résultats."
+    )
+    col1, col2 = st.columns(2)
+    with col1:
+        st.button("📥 Charger les données du module", on_click=charger_donnees_module, args=(module,),
+                  type="primary", width="stretch", key="cours_charger")
+    with col2:
+        st.button("🎯 Aller à la Modélisation", on_click=aller_a, args=("🎯 Modélisation Supervisée",),
+                  width="stretch", key="cours_modelisation")
+    st.markdown("#### 2. Coder")
+    st.markdown("Les exercices à trous (avec indices) puis le défi s'exécutent dans ton navigateur, sans rien installer.")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.link_button("💻 Exercices du module (notebook)", module['notebook_exercices'], width="stretch")
+    with col2:
+        st.link_button("🏆 Le défi", module['notebook_defi'], width="stretch")
+    st.markdown("#### 3. Comparer")
+    st.markdown("À la fin du défi, ton résultat est comparé à celui de DATAPULSE. Tu peux aussi déposer ton "
+                "`mes_resultats.json` dans la page **🎓 Comparer mon code**.")
+    st.button("🎓 Aller à Comparer mon code", on_click=aller_a, args=("🎓 Comparer mon code",), key="cours_comparer")
+
 def page_chargement_eda():
     """Page de chargement et EDA"""
     
     st.markdown("## 📂 Chargement & Analyse Exploratoire")
+
+    if 'message_cours' in st.session_state:
+        st.success(st.session_state.pop('message_cours'))
     
     st.markdown("### 1️⃣ Importer vos Données")
     
@@ -750,6 +929,8 @@ def page_chargement_eda():
         target_col = st.selectbox(
             "Choisissez la colonne cible (Y) pour l'analyse supervisée",
             options=st.session_state.processor.column_names,
+            index=(st.session_state.processor.column_names.index(st.session_state.target_column)
+                   if st.session_state.get('target_column') in st.session_state.processor.column_names else 0),
             help="Cette variable sera celle que vous voulez prédire"
         )
         
