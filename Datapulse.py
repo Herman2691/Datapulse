@@ -853,6 +853,18 @@ def afficher_export_parametres(key_prefix):
         key=f"{key_prefix}_params_json"
     )
 
+    reference_json = st.session_state.processor.get_reference_json()
+    if reference_json is not None:
+        st.download_button(
+            label="📥 Télécharger la référence pour comparaison (JSON)",
+            data=reference_json,
+            file_name=f"reference_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+            mime="application/json",
+            help="Paramètres, métriques et prédictions ligne par ligne du jeu de test",
+            use_container_width=True,
+            key=f"{key_prefix}_reference_json"
+        )
+
 def afficher_code(key_prefix):
     """« Montre-moi le code » : code scikit-learn qui reproduit exactement le dernier entraînement"""
     processor = st.session_state.processor

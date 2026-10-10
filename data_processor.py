@@ -89,6 +89,7 @@ class DataProcessor:
         self.random_state = 42
         self.run_parameters = None
         self.run_metrics = None
+        self.run_predictions = None
         self.source_file = None
         self.read_options = None
         self.columns_stripped = False
@@ -523,6 +524,7 @@ class DataProcessor:
         self.X_test = pd.DataFrame(self.preprocessor.transform(self.X_test_raw), columns=feature_names)
         self.run_parameters = self._build_run_parameters(model_name, analysis_type, scoring)
         self.run_metrics = None
+        self.run_predictions = self._build_run_predictions(y_pred, analysis_type)
         
         report = f"🎯 **RAPPORT: {model_name}**\n\n"
         report += f"**Type:** {analysis_type}\n"
@@ -546,7 +548,8 @@ class DataProcessor:
             self.run_metrics = {
                 "accuracy": float(accuracy),
                 "matrice_confusion": confusion_matrix(self.y_test, y_pred).tolist(),
-                "cv_moyenne": float(cv_scores.mean())
+                "cv_moyenne": float(cv_scores.mean()),
+                "cv_scores": cv_scores.tolist()
             }
             report += f"**Validation Croisée (5-fold):**\n"
             report += f"   Moyenne: {cv_scores.mean():.4f} (±{cv_scores.std()*2:.4f})\n\n"
@@ -595,7 +598,8 @@ class DataProcessor:
                 "r2": float(r2),
                 "mse": float(mse),
                 "mae": float(mae),
-                "cv_moyenne": float(cv_scores.mean())
+                "cv_moyenne": float(cv_scores.mean()),
+                "cv_scores": cv_scores.tolist()
             }
             
             report += f"**Métriques d'Erreur:**\n"
@@ -1438,6 +1442,44 @@ class DataProcessor:
             }
         }
         return self._to_jsonable(params)
+
+    def _build_run_predictions(self, y_pred, analysis_type):
+        """Photographie ligne par ligne des prédictions sur le jeu de test"""
+        predictions = {
+            "indices": self.X_test_raw.index.tolist(),
+            "y_vrai": np.asarray(self.y_test).tolist(),
+            "y_pred": np.asarray(y_pred).tolist(),
+            "classes": None,
+            "probabilites": None
+        }
+        if analysis_type == CLASSIFICATION and hasattr(self.pipeline, 'predict_proba'):
+            predictions["classes"] = self.current_model.classes_.tolist()
+            predictions["probabilites"] = self.pipeline.predict_proba(self.X_test_raw).tolist()
+        return self._to_jsonable(predictions)
+
+    def get_reference_json(self):
+        """Référence complète du dernier entraînement, pour le moteur de comparaison
+
+        Contient les paramètres, les métriques et, pour chaque ligne du jeu de test,
+        sa position dans le fichier (0 = première ligne de données), la vraie valeur,
+        la prédiction et les probabilités. None si aucun entraînement.
+        """
+        if self.run_parameters is None or self.run_metrics is None:
+            return None
+        reference = {
+            "format": "datapulse-reference",
+            "version_format": 1,
+            "tolerances_suggerees": {
+                "accuracy": 1e-6,
+                "matrice_confusion": 0,
+                "probabilites": 1e-4,
+                "regression": 1e-6
+            },
+            "parametres": self.run_parameters,
+            "metriques": self._to_jsonable(self.run_metrics),
+            "jeu_de_test": self.run_predictions
+        }
+        return json.dumps(reference, ensure_ascii=False)
 
     def get_run_parameters_json(self):
         """Paramètres exacts du dernier entraînement, au format JSON (None si aucun)"""
