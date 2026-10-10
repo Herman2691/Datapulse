@@ -298,6 +298,7 @@ Datapulse/
 ├── Datapulse.py              # Application Streamlit principale
 ├── data_processor.py         # Module de traitement ML
 ├── code_generator.py         # Génération du code scikit-learn équivalent
+├── comparateur.py            # Comparaison d'un résultat étudiant avec la référence
 ├── requirements.txt          # Dépendances Python
 └── README.md                 # Documentation
 ```
@@ -326,6 +327,19 @@ Classe `DataProcessor` gérant :
 Génère, à partir des paramètres exportés en JSON, le code Python commenté qui reproduit exactement un entraînement. Utilisable aussi en ligne de commande :
 ```bash
 python code_generator.py parametres.json
+```
+
+#### `comparateur.py`
+Compare le résultat d'un code écrit à la main avec la référence exportée par DATAPULSE : même jeu de test, mêmes prédictions, mêmes probabilités (tolérances du plan). En cas d'écart, il ne dit pas seulement « faux » : il propose des pistes (graine, `test_size`, `stratify`, normalisation oubliée ou ajustée avant le découpage, hyperparamètres).
+
+À la fin du code de l'étudiant :
+```python
+from comparateur import sauvegarder_resultats
+sauvegarder_resultats(X_test, y_pred, modele)   # crée mes_resultats.json
+```
+Puis :
+```bash
+python comparateur.py reference.json mes_resultats.json
 ```
 
 ---
